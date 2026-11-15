@@ -1,0 +1,33 @@
+# All settings live here. To add a company, drop a PDF named
+# company_quarter_currency.pdf into data/raw_pdfs/ (e.g. vale_3q26_usd.pdf). No code changes.
+
+model: "claude-sonnet-5-5"
+effort: "medium"            # low | medium | high : how hard the model thinks
+max_tokens: 16000           # max size of the model's answer for ONE chunk
+api_key_env: "ANTHROPIC_API_KEY"   # NAME of the environment variable (never the key itself)
+
+# --- reading and chunking ---
+chunk_pages: 12             # at most this many pages (or slides) per API call
+max_chars_per_chunk: 60000  # also split if a chunk gets longer than this
+min_text_chars: 200         # fewer characters than this in the whole PDF = scanned, skipped
+
+# Companies treated as banks (no EBITDA; bank metrics go to their own sheet).
+# Names must match the company part of the file name.
+banks:
+  - itau-unibanco
+  - btg-pactual
+  - jpmorgan
+  - goldman-sachs
+
+# --- validation tolerances ---
+validation:
+  ratio_rel_tol: 0.10       # net debt/EBITDA may differ from net debt / EBITDA by 10% ...
+  ratio_abs_tol: 0.10       # ... or 0.10x, whichever is larger
+  pair_margin_tol_pp: 2.0   # same company in two currencies: margins may differ by 2 pp
+  quote_match: 0.80         # share of a quote's words that must be on the cited page (numbers: all)
+  conflict_rel_tol: 0.01    # two chunks may differ by 1% (after unit normalization) without a flag
+
+paths:
+  pdf_dir: "data/raw_pdfs"
+  outputs: "outputs"
+  cache: "outputs/cache"

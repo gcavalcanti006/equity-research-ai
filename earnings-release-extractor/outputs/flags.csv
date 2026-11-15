@@ -1,0 +1,24 @@
+file,field,flag_type,message,page,quote
+btg-pactual_3q26_brl,net_income,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 5327.0 millions (p.3); another page says 5.1 billions (p.22),22.0,"impulsionado pelo lucro líquido contábil de R$5,1 bilhões, parcialmente compensado pela distribuição de R$3,0 bilhões em juros sobre capital próprio (JCP)"
+btg-pactual_3q26_brl,loan_portfolio,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 386.0 billions (p.4); another page says 433.5 billions (p.24),24.0,"O saldo do nosso portfólio de crédito expandido subiu 6,6% em relação ao trimestre anterior, passando de R$406,8 bilhões para R$433,5 bilhões"
+btg-pactual_3q26_brl,cet1,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 16.3 percent (p.3); another page says 11.6 percent (p.25),25.0,"11,5% 11,3% 11,4% 11,6% 11,6%"
+bunge_3q26_usd,net_income,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 496 millions (p.23); another page says 1217 millions (p.25),25.0,"Net income $1,217"
+bunge_3q26_usd,net_debt_ebitda,NET_DEBT_EBITDA_MISMATCH,"reported 1.90x vs computed 4.25x (net debt 15,856.0 / EBITDA 3,728.0, USD millions)",8.0,Adjusted Leverage Ratio(1) : 1.9x
+jpmorgan_3q26_usd,period,FILENAME_PDF_MISMATCH,could not read a quarter from PDF period 'Third-quarter 2026'; cannot confirm 3Q26,,
+petrobras_3q26_brl,ebitda,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 94520 millions (p.6); another page says 85822 millions (p.20),20.0,"EBITDA Ajustado total 85.822 93.843 63.913 239.308 177.254 (8,5) 34,3 35,0"
+petrobras_3q26_brl,net_income,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 47877 millions (p.6); another page says 39783 millions (p.21),21.0,Lucro (prejuízo) líquido do período 39.783 52.495 32.847 125.039 94.952
+petrobras_3q26_brl,capex,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 6424 millions (p.9); another page says 27749 millions (p.13),13.0,Aquisições de ativos imobilizados e intangíveis (27.749) (23.040) (26.629) (74.523) (73.096)
+petrobras_3q26_brl,dividends,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 15.3 billions (p.5); another page says 8079 millions (p.13),13.0,Dividendos pagos a acionistas da Petrobras (8.079) (7.637) (10.973) (27.355) (37.127)
+petrobras_3q26_brl,net_debt_ebitda,MIXED_CURRENCIES,net debt in USD but EBITDA in BRL; ratio not checked,6.0,"Dívida líquida/LTM EBITDA Ajustado (x) (**) 1,00 1,14 1,53 1,00 1,53 (12,3) (34,6) (34,6)"
+petrobras_3q26_usd,ebitda,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 18394 millions (p.6); another page says 16703 millions (p.20),20.0,"EBITDA Ajustado total 16.703 18.615 11.728 46.667 31.416 (10,3) 42,4 48,5"
+petrobras_3q26_usd,net_income,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 9316 millions (p.6); another page says 7747 millions (p.21),21.0,Lucro (prejuízo) líquido do período 7.747 10.438 6.053 24.403 16.805
+petrobras_3q26_usd,capex,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 6424 millions (p.9); another page says 5402 millions (p.13),13.0,Aquisições de ativos imobilizados e intangíveis (5.402) (4.559) (4.887) (14.474) (12.933)
+petrobras_3q26_usd,net_debt_ebitda,NET_DEBT_EBITDA_MISMATCH,"reported 1.00x vs computed 3.14x (net debt 57,847.0 / EBITDA 18,394.0, USD millions)",6.0,"Dívida líquida/LTM EBITDA Ajustado (x) 1,00 1,14 1,53 1,00 1,53 (12,3) (34,6) (34,6)"
+slc-agricola_3q26_brl,capex,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 503759 thousands (p.20); another page says 197942 thousands (p.33),33.0,"Em imobilizado (663.154) (872.572) 31,6% (171.872) (197.942) 15,2%"
+slc-agricola_3q26_brl,net_debt_ebitda,NET_DEBT_EBITDA_MISMATCH,"reported 3.00x vs computed 15.38x (net debt 7,128,351.0 / EBITDA 463,499.0, BRL thousands)",23.0,"Dívida Líquida Ajustada/EBITDA Ajustado 1,97x 3,00x"
+vale_3q26_usd,ebitda,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 3508 millions (p.1); another page says 3327 millions (p.28),28.0,"Adjusted EBITDA 3,327 4,369 -24 % 3,676 -9% 10,833 10,870 — %"
+vale_3q26_usd,net_debt_ebitda,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 0.8 times (p.9); another page says 1.2 times (p.28),28.0,Total debt and leases / LTM Adjusted EBITDA (x) 1.2 1.3 -8% 1.2 0%
+vale_3q26_usd,capex,CONFLICTING_VALUES_ACROSS_CHUNKS,kept 1250 millions (p.1); another page says 1447 millions (p.26),26.0,"Acquisition of property, plant and equipment and intangible assets (1,447) (1,394) 4% (1,244) 16% (3,876) (3,817) 2%"
+vale_3q26_usd,net_debt_ebitda,NET_DEBT_EBITDA_MISMATCH,"reported 0.80x vs computed 3.73x (net debt 13,097.0 / EBITDA 3,508.0, USD millions)",9.0,Net debt / adjusted LTM EBITDA (x) 0.8 0.8 0% 0.8 0%
+(all),currency,MIXED_CURRENCIES,"results mix BRL, USD: no conversion done; compare ratios only",,
+(all),net_income,NET_INCOME_DEFINITIONS_DIFFER,"net income definitions differ (adjusted: btg-pactual_3q26_brl, bunge_3q26_usd; recurring_managerial: itau-unibanco_3q26_brl; reported: chevron_3q26_usd, exxonmobil_3q26_usd, goldman-sachs_3q26_usd, jpmorgan_3q26_usd, petrobras_3q26_brl, petrobras_3q26_usd, slc-agricola_3q26_brl, vale_3q26_usd); not strictly comparable",,

@@ -1,0 +1,6 @@
+anthropic
+pdfplumber
+pandas
+openpyxl
+pyyaml
+pytest

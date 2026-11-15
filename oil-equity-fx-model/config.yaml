@@ -1,0 +1,23 @@
+# All settings live here. Change a ticker or a date range without touching code.
+
+tickers:
+  equity: "PETR4.SA"   # the stock we want to explain
+  oil: "BZ=F"          # Brent crude futures (USD per barrel)
+  fx: "BRL=X"          # USD/BRL exchange rate (BRL per 1 USD)
+
+years: 5               # how many years of daily data to download
+# start_date / end_date: set both (YYYY-MM-DD) to override "years"
+start_date: null
+end_date: null
+
+currency_of_equity: "BRL"   # only used in labels
+
+max_ffill_days: 2      # fill gaps of at most this many days (holidays); longer gaps are dropped
+rolling_window: 60     # trading days for the rolling correlation
+oil_lag_days: 0        # 0 = same-day Brent return; 1 = use yesterday's Brent return as well
+test_fraction: 0.2     # the LAST 20% of days is the test set (no shuffling)
+model_type: "random_forest"   # "random_forest" or "gradient_boosting"
+random_seed: 42
+
+paths:
+  outputs: "outputs"
