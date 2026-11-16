@@ -220,6 +220,13 @@ def check_leverage(result, rel_tol, abs_tol):
         return [Flag(c, "net_debt_ebitda", RATIO_NOT_CHECKABLE,
                      f"EBITDA basis is '{eb['basis']}' but the ratio basis is '{ratio['basis']}': "
                      "not like-for-like, check by hand", page, quote)]
+    adj = re.compile(r"adjusted|ajustad", re.I)
+    ratio_txt = _plain(f"{ratio.get('label', '')} {ratio.get('definition', '')}")
+    nd_txt = _plain(f"{nd.get('label', '')} {nd.get('definition', '')}")
+    if adj.search(ratio_txt) and not adj.search(nd_txt):
+        return [Flag(c, "net_debt_ebitda", RATIO_NOT_CHECKABLE,
+                     "the reported ratio is an ADJUSTED leverage ratio (adjusted net debt) but the extracted net debt "
+                     "is not adjusted: not like-for-like, check by hand", page, quote)]
     computed, reported = n / e, ratio["value"]
     if abs(computed - reported) > max(abs_tol, rel_tol * abs(reported)):
         return [Flag(c, "net_debt_ebitda", RATIO_MISMATCH,
@@ -239,9 +246,22 @@ def looks_like_total_capital(fig):
     return bool(_TOTAL_CAPITAL.search(text)) and not _CET1.search(text)
 
 
+def has_cet1_evidence(fig):
+    """True if the label, definition or quote actually says CET1 / common equity / capital principal."""
+    text = _plain(f"{fig.get('label', '')} {fig.get('definition', '')} {fig.get('quote', '')}")
+    return bool(_CET1.search(text))
+
+
 def check_cet1(result):
-    """CET1 is not the total capital ratio. If that is all we have, drop it and flag."""
+    """CET1 is not the total capital ratio. If that is all we have, drop it and flag.
+    Also drop it when nothing in the label, definition or quote says it is CET1 (a bare 'capital ratio'
+    could be any of Tier 1, total capital...)."""
     fig = result["metrics"].get("cet1")
+    if fig and not looks_like_total_capital(fig) and not has_cet1_evidence(fig):
+        result["metrics"]["cet1"] = None
+        return [Flag(result["file"], "cet1", CET1_DEFINITION,
+                     f"nothing in '{fig.get('label', '')}' / definition / quote says this is CET1; set to null",
+                     fig.get("page"), fig.get("quote", ""))]
     if fig and looks_like_total_capital(fig):
         result["metrics"]["cet1"] = None
         return [Flag(result["file"], "cet1", CET1_DEFINITION,

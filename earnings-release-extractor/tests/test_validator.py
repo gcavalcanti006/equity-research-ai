@@ -181,3 +181,24 @@ def test_leverage_different_or_unknown_basis_is_not_checkable_never_mismatch():
     for eb, ratio in [("quarter", "last_12_months"), ("other", "last_12_months"),
                       ("last_12_months", "other"), ("other", "other"), ("point_in_time", "point_in_time")]:
         assert types(v.check_leverage(_lev(eb, ratio, 1.5), 0.1, 0.1)) == [v.RATIO_NOT_CHECKABLE]
+
+
+def test_cet1_without_cet1_evidence_is_dropped():
+    r = result(cet1=fig(16.3, unit="percent", currency="none", basis="point_in_time",
+                               label="Capital ratio", definition="capital ratio", quote="16,3%"))
+    assert v.CET1_DEFINITION in types(v.check_cet1(r)) and r["metrics"]["cet1"] is None
+
+
+def test_cet1_with_cet1_evidence_is_kept():
+    r = result(cet1=fig(11.6, unit="percent", currency="none", basis="point_in_time",
+                               label="CET1 ratio", definition="Common Equity Tier 1", quote="CET1 11,6%"))
+    assert v.check_cet1(r) == [] and r["metrics"]["cet1"] is not None
+
+
+def test_adjusted_leverage_vs_plain_net_debt_is_not_a_false_mismatch():
+    r = result(
+               net_debt=fig(15856, label="Net debt", definition="total debt less cash", basis="last_12_months"),
+               ebitda=fig(3728, basis="last_12_months"),
+               net_debt_ebitda=fig(1.9, unit="times", currency="none", basis="last_12_months",
+                                   label="Adjusted Leverage Ratio", definition="adjusted net debt / adjusted EBITDA"))
+    assert types(v.check_leverage(r, 0.10, 0.10)) == [v.RATIO_NOT_CHECKABLE]

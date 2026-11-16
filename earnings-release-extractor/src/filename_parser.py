@@ -48,6 +48,9 @@ _WORDS = {"first": 1, "second": 2, "third": 3, "fourth": 4,
 def _plain(text):
     """Lower-case, remove accents and ordinal signs ('3º' -> '3', 'trimestre' stays)."""
     text = text.replace("º", "").replace("°", "").replace("ª", "")
+    # PDFs use "special" hyphens/dashes and non-breaking spaces (e.g. "Third\u2011quarter 2026"): make them plain.
+    text = re.sub("[\u2010\u2011\u2012\u2013\u2014\u2212]", "-", text)
+    text = re.sub("[\u00a0\u2007\u202f\u2009\u200a]", " ", text)
     text = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in text if not unicodedata.combining(ch)).lower().strip()
 

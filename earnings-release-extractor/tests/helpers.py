@@ -36,11 +36,11 @@ class FakeClient:
         return SimpleNamespace(stop_reason=self.stop_reason, content=[block])
 
 
-def fig(value, unit="millions", currency="USD", basis="quarter", page=1, quote="q"):
+def fig(value, unit="millions", currency="USD", basis="quarter", page=1, quote="q", **extra):
     """A cleaned figure (what validator functions receive)."""
     return {"value": value, "unit": unit, "currency": currency, "basis": basis,
             "scope": "consolidated", "definition_type": "reported", "definition": "d",
-            "label": "x", "page": page, "quote": quote}
+            "label": "x", "page": page, "quote": quote, **extra}
 
 
 def result(**metrics):

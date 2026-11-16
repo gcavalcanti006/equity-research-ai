@@ -67,3 +67,10 @@ def test_other_quarters_and_unreadable_periods():
     "3Q-26", "Third–quarter 2026".replace("–", "-")])
 def test_hyphenated_quarter_formats(text):
     assert normalize_period(text) == (3, 2026)
+
+
+def test_period_with_special_hyphen_and_nbsp():
+    # real PDFs use non-breaking hyphens / spaces (this made JPMorgan 'Third-quarter 2026' unreadable)
+    from src.filename_parser import normalize_period
+    assert normalize_period("Third‑quarter 2026") == (3, 2026)
+    assert normalize_period("Third–quarter 2026") == (3, 2026)

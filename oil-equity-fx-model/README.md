@@ -139,3 +139,8 @@ multi-factor model for several stocks (Brazil and US; oil, agriculture, mining).
   tables only list reliable stocks; the CSV has all of them. With 30 stocks tested, some false positives are possible.
 - Limits: linear model (large shocks are extrapolations), ranges assume independent daily errors (crashes have
   fatter tails), episode dates in the config were written from memory: check them.
+
+## Update (phase 3)
+- **Ranges in crashes:** the 80% range now uses the error size of *turbulent* days (top 20% market moves) times `crisis_band_multiplier` (1.25). In the historical test, coverage went from ~57% to ~83% for Brazilian oil stocks. US oil stocks are still under-covered (~58%): treat their ranges as a minimum. The old "calm" range is kept in `low_80_calm_pct` / `high_80_calm_pct`. The multiplier was chosen on the same past episodes, so expect real coverage a bit lower.
+- **No 1-day lags:** `lagged_factors: []`. Without lags the model was equal or better out of sample in 23 of 29 stocks, and it is simpler.
+- `with_correlations` readings mix in what usually moves together (e.g. oil up often comes with US yields up), so they are not causal. Use `only_shocked` to isolate one factor.

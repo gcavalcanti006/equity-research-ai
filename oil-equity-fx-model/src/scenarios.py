@@ -15,8 +15,8 @@ TWO different things live here:
    that really happened inside the window and compare its answer with what the stock really did.
    It tests the translation factor -> stock. It does NOT test whether anyone could have forecast the factors.
 
-Honest limits: the model is linear (a very large shock is an extrapolation), and the range assumes
-independent daily errors (real crises have fatter tails, so real ranges are wider in a crash).
+Honest limits: the model is linear (a very large shock is an extrapolation), and the range uses the error size of turbulent days times `crisis_band_multiplier` (chosen so that past episodes
+fall inside it ~80% of the time; picked on the same episodes, so expect real coverage a bit lower).
 """
 import numpy as np
 import pandas as pd
@@ -39,6 +39,14 @@ def fit_for_scenarios(X, y, market_cols, other_cols, cfg):
     model = FactorModel(market_cols, other_cols, orthogonalize=cfg["orthogonalize"]).fit(X, y)
     sigma = float(np.std(y.values - model.predict(X), ddof=1))
     return model, sigma
+
+
+def crisis_sigma(resid, market, quantile=0.8):
+    """Daily error size to use for ranges. Errors are bigger on turbulent days (the 20% of days with the biggest
+    market moves) than on average, so we take the larger of the two. Fixes ranges that were too narrow in crashes."""
+    resid = pd.Series(np.asarray(resid), index=market.index)
+    turbulent = market.abs() >= market.abs().quantile(quantile)
+    return float(max(resid.std(ddof=1), resid[turbulent].std(ddof=1)))
 
 
 def build_cumulative_vector(X, shocks, with_correlations):
@@ -90,7 +98,9 @@ def run_scenarios(X, y, market_cols, other_cols, cfg, scenarios, rate_cols, subs
     """One row per scenario and reading. Scenarios whose shocked factors the stock does not use are skipped.
     `substituted` maps a factor to the proxy actually used (e.g. iron_ore -> iron_proxy): a shock named
     on the real factor is applied to the proxy, and the row says so."""
-    model, sigma = fit_for_scenarios(X, y, market_cols, other_cols, cfg)
+    model, sigma_avg = fit_for_scenarios(X, y, market_cols, other_cols, cfg)
+    mult = float(cfg.get("crisis_band_multiplier", 1.25))
+    sigma = mult * crisis_sigma(y.values - model.predict(X), X[market_cols[0]])
     substituted = substituted or {}
     rows = []
     for name, spec in scenarios.items():
@@ -104,12 +114,14 @@ def run_scenarios(X, y, market_cols, other_cols, cfg, scenarios, rate_cols, subs
             if vec is None:
                 break
             impact, band = impact_of(model, sigma, X, vec, h)
+            band_avg = Z80 * sigma_avg * np.sqrt(h)
             rows.append({"scenario": name, "reading": reading, "horizon_days": h,
                          "shocks_applied": ", ".join(f"{f}={value_of[f]:+g}" for f in applied),
                          "note": note,
                          "shocks_not_used_by_this_stock": ", ".join(f for f in asked if f not in applied),
                          "impact_pct": _pct(impact), "low_80_pct": _pct(impact - band),
                          "high_80_pct": _pct(impact + band),
+                         "low_80_calm_pct": _pct(impact - band_avg), "high_80_calm_pct": _pct(impact + band_avg),
                          "beyond_history": ", ".join(beyond_history(X, applied, h))})
     return rows
 
@@ -149,15 +161,19 @@ def backtest_episode(X, y, market_cols, other_cols, cfg, start, end, min_train):
     full = FactorModel(market_cols, other_cols, orthogonalize=cfg["orthogonalize"]).fit(Xtr, ytr)
     capm = FactorModel(market_cols, [], orthogonalize=False).fit(Xtr, ytr)
     sigma = float(np.std(ytr.values - full.predict(Xtr), ddof=1))
+    sigma_c = float(cfg.get("crisis_band_multiplier", 1.25)) * crisis_sigma(ytr.values - full.predict(Xtr),
+                                                                           Xtr[market_cols[0]])
     avg = pd.DataFrame([X.iloc[i0:i1 + 1].sum().values / h], columns=X.columns)
     pred_full, pred_capm = h * full.predict(avg)[0], h * capm.predict(avg)[0]
     actual = float(y.iloc[i0:i1 + 1].sum())
-    band = Z80 * sigma * np.sqrt(h)
+    band = Z80 * sigma_c * np.sqrt(h)
+    band_calm = Z80 * sigma * np.sqrt(h)
     return {"start": X.index[i0].date(), "end": X.index[i1].date(), "days": h,
             "actual_pct": _pct(actual), "model_pct": _pct(pred_full), "capm_pct": _pct(pred_capm),
             "abs_err_model": abs(actual - pred_full), "abs_err_capm": abs(actual - pred_capm),
             "abs_err_zero": abs(actual),
             "inside_80": bool(abs(actual - pred_full) <= band),
+            "inside_80_calm": bool(abs(actual - pred_full) <= band_calm),
             "direction_ok": bool(np.sign(pred_full) == np.sign(actual))}
 
 
@@ -172,4 +188,5 @@ def summarize_backtest(df):
             "mae_zero_pp": 100 * ok["abs_err_zero"].mean(),
             "share_model_beats_capm": float((ok["abs_err_model"] < ok["abs_err_capm"]).mean()),
             "direction_hit_rate": float(ok["direction_ok"].mean()),
-            "coverage_80": float(ok["inside_80"].mean())}
+            "coverage_80": float(ok["inside_80"].mean()),
+            "coverage_80_calm": float(ok["inside_80_calm"].mean()) if "inside_80_calm" in ok else float("nan")}
