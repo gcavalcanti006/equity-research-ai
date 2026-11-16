@@ -37,7 +37,7 @@ bcb:                      # Brazilian central bank (SGS code)
 
 # Optional: Brazilian 2y/10y yields you downloaded yourself. CSV with columns: date,br2y,br10y (% a.a.)
 # If set, add br10y / br_slope to 'common_factors.BR' below to use them.
-br_yields_csv: null
+br_yields_csv: data/br_yields.csv   # loaded, but NOT used by default: tested, adds ~nothing (see README). To use: add br10y, br_slope to common_factors.BR
 
 rate_series: []           # extra columns to treat as yields (change in pp) instead of prices
 
