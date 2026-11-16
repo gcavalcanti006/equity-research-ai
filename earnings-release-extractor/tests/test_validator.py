@@ -208,3 +208,19 @@ def test_quote_numbers_survive_a_space_before_the_separator():
     # Itau's PDF prints "1 .544,4" where the model quotes "1.544,4"
     ok, _ = v.quote_match("Total 1.544,4 1.522,4 1,4% 1.402,0", "Total 1 .544,4 1 .522,4 1,4% 1 .402,0 10,2%")
     assert ok
+
+
+def test_leverage_uses_ltm_ebitda_when_the_ratio_is_on_ltm():
+    r = result(net_debt=fig(10000, basis="point_in_time"),
+               ebitda=fig(2500, basis="quarter"),
+               ebitda_ltm=fig(10000, basis="last_12_months"),
+               net_debt_ebitda=fig(1.0, unit="times", currency="none", basis="last_12_months"))
+    assert v.check_leverage(r, 0.10, 0.10) == []                       # 10000 / 10000 = 1.0x matches
+
+
+def test_leverage_with_ltm_ebitda_still_catches_a_real_mismatch():
+    r = result(net_debt=fig(10000, basis="point_in_time"),
+               ebitda=fig(2500, basis="quarter"),
+               ebitda_ltm=fig(10000, basis="last_12_months"),
+               net_debt_ebitda=fig(2.5, unit="times", currency="none", basis="last_12_months"))
+    assert types(v.check_leverage(r, 0.10, 0.10)) == [v.RATIO_MISMATCH]

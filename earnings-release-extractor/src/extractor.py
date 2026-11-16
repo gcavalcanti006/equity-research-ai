@@ -17,7 +17,7 @@ from src.schema import CHUNK_SCHEMA, METRICS, PREFERRED_BASIS
 from src.validator import (CHUNK_CONFLICT, EXTRACTION_FAILED, Flag, looks_like_total_capital,
                            same_value)
 
-PROMPT_VERSION = "v2"   # change this to invalidate the cache after editing the prompt
+PROMPT_VERSION = "v3"   # change this to invalidate the cache after editing the prompt
 
 SYSTEM_PROMPT = """You extract financial figures from pages of an earnings release (text or slide deck).
 
@@ -50,6 +50,10 @@ Strict rules:
    leave cet1 out if only the total ratio is shown. Say in `definition` which ratio it is.
 10. net_debt_ebitda and roe are ratios: unit 'times' for leverage, 'percent' for ROE and efficiency.
     Companies usually compute net debt/EBITDA on last-12-months EBITDA: set basis accordingly.
+    ebitda_ltm is the EBITDA of the last 12 months (LTM), used as the base of the net debt / EBITDA ratio.
+    Add it as its OWN entry (metric ebitda_ltm, basis last_12_months) ONLY if the document states that
+    number ("LTM EBITDA", "EBITDA dos ultimos 12 meses"). Never sum quarters yourself. The quarterly
+    EBITDA stays in `ebitda`.
 11. guidance: add one entry only for explicit forward-looking targets or ranges given by the
     company; otherwise leave the list empty.
 12. management_tone: one entry (positive, neutral or cautious) with a short quote that supports it,

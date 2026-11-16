@@ -7,7 +7,7 @@ from src.schema import METRICS
 from src.validator import ebitda_margin, net_margin
 
 COMMON_METRICS = ["net_income", "dividends", "roe"]
-NON_BANK_METRICS = ["net_revenue", "ebitda", "net_income", "net_debt", "net_debt_ebitda",
+NON_BANK_METRICS = ["net_revenue", "ebitda", "ebitda_ltm", "net_income", "net_debt", "net_debt_ebitda",
                     "capex", "dividends", "roe"]
 BANK_METRICS = ["net_income", "roe", "loan_portfolio", "efficiency_ratio", "cet1", "dividends"]
 

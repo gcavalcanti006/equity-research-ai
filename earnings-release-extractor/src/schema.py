@@ -8,7 +8,7 @@ nothing for metrics it does not find, so "not found" simply means "not in the li
 
 # Numeric metrics. Banks have no EBITDA, but the same schema is used for every company.
 METRICS = [
-    "net_revenue", "ebitda", "net_income", "net_debt", "net_debt_ebitda", "capex",
+    "net_revenue", "ebitda", "ebitda_ltm", "net_income", "net_debt", "net_debt_ebitda", "capex",
     "dividends", "roe",
     "loan_portfolio", "efficiency_ratio", "cet1",   # bank metrics
 ]
@@ -16,7 +16,7 @@ BANK_ONLY = ["loan_portfolio", "efficiency_ratio", "cet1"]
 
 # Which basis we prefer for each metric when it appears several times (see extractor.rank_key).
 PREFERRED_BASIS = {
-    "net_revenue": "quarter", "ebitda": "quarter", "net_income": "quarter", "capex": "quarter",
+    "net_revenue": "quarter", "ebitda": "quarter", "ebitda_ltm": "last_12_months", "net_income": "quarter", "capex": "quarter",
     "dividends": "quarter", "roe": "quarter", "efficiency_ratio": "quarter",
     "net_debt": "point_in_time", "loan_portfolio": "point_in_time", "cet1": "point_in_time",
     "net_debt_ebitda": "last_12_months",

@@ -203,6 +203,9 @@ def check_leverage(result, rel_tol, abs_tol):
     one quarter. Then the check is not like-for-like, so we say so instead of raising a false alarm."""
     m = result["metrics"]
     nd, eb, ratio = m.get("net_debt"), m.get("ebitda"), m.get("net_debt_ebitda")
+    ltm = m.get("ebitda_ltm")
+    if ratio and ltm and ratio.get("basis") == "last_12_months" and ltm.get("basis") == "last_12_months":
+        eb = ltm            # compare like with like: ratio on LTM EBITDA vs LTM EBITDA
     if not (nd and eb and ratio):
         return []
     c = result["file"]
@@ -277,6 +280,8 @@ def check_bank_rules(result, is_bank_in_config):
     if not is_bank_in_config and result.get("is_bank"):
         flags.append(Flag(c, "is_bank", BANK_CLASS,
                           "model says this is a bank but it is not in config 'banks'; treated as a bank"))
+    if is_bank_in_config or result.get("is_bank"):
+        result["metrics"]["ebitda_ltm"] = None        # same reason as EBITDA below
     if (is_bank_in_config or result.get("is_bank")) and result["metrics"].get("ebitda"):
         fig = result["metrics"]["ebitda"]
         flags.append(Flag(c, "ebitda", BANK_EBITDA,
