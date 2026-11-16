@@ -1,0 +1,50 @@
+file,metric,value,unit,basis,page,quote,also_accept,note
+chevron_3q26_usd,net_revenue,65237,millions,quarter,7,"Sales and other operating revenues $ 65,237",,
+chevron_3q26_usd,net_income,9924,millions,quarter,1,"Total Earnings / (Loss) $ MM $ 9,924",,attributable to Chevron
+chevron_3q26_usd,net_debt,20730,millions,point_in_time,8,"securities) $ 20,730 $ 34,461",,
+chevron_3q26_usd,capex,4011,millions,quarter,8,"CAPEX $ 4,011 $ 4,444",,
+chevron_3q26_usd,dividends,3482,millions,quarter,9,"Cash dividends — common stock (3,482)",,
+chevron_3q26_usd,ebitda,,millions,quarter,1,,,release has no EBITDA: must be null
+exxonmobil_3q26_usd,net_income,15413,millions,quarter,1,"15,413 14,525 +888 Earnings (U.S. GAAP)",,
+exxonmobil_3q26_usd,net_debt,22.1,billions,point_in_time,2,"Net debt of $22.1 billion as of September 30, 2026",,
+exxonmobil_3q26_usd,capex,7002,millions,quarter,7,"7,002 6,787 Total Cash Capital Expenditures (Non-GAAP)",,
+exxonmobil_3q26_usd,dividends,4.3,billions,quarter,1,including $4.3 billion of dividends,,
+exxonmobil_3q26_usd,net_revenue,,millions,quarter,1,,,release has no revenue line: must be null
+goldman-sachs_3q26_usd,net_income,5294,millions,quarter,9,"Net earnings 5,294 6,628 4,098",5122 millions,"5,122 = net earnings to common"
+goldman-sachs_3q26_usd,roe,18.7,percent,quarter,2,Annualized return on average common shareholders' equity (ROE)2 was 18.7% for the third quarter of 2026,,
+goldman-sachs_3q26_usd,efficiency_ratio,59.4,percent,year_to_date,5,efficiency ratio3 was 59.4% for the first nine months of 2026,,only the 9-month ratio is stated; quarterly not stated
+jpmorgan_3q26_usd,net_income,15305,millions,quarter,2,"Net income $ 15,305 $ 21,155 $ 14,393",,
+jpmorgan_3q26_usd,roe,17,percent,quarter,2,Return on common equity 17 % 24 % 17 %,,
+jpmorgan_3q26_usd,cet1,13.9,percent,point_in_time,1,Standardized ratio3 of 13.9% and Advanced ratio3 of 14.1%,14.1 percent,Standardized is the binding one; Advanced 14.1 also acceptable
+btg-pactual_3q26_brl,net_revenue,10812.2,millions,quarter,3,"receitas totais de R$10.812,2 milhões",,
+btg-pactual_3q26_brl,net_income,5091.5,millions,quarter,5,"lucro líquido contábil atingiu, também, novo recorde de R$5.091,5 milhões",5327 millions,"reported 5,091.5; adjusted 5,327.0 acceptable"
+btg-pactual_3q26_brl,roe,25.3,percent,quarter,6,"ROAE Anualizado 25,3% 26,4% 26,9%",26.4 percent,25.3 = reported; 26.4 = adjusted
+btg-pactual_3q26_brl,efficiency_ratio,37.8,percent,quarter,3,"Índice de eficiência ajustado 36,8% 37,1% 37,8%",,
+btg-pactual_3q26_brl,loan_portfolio,386.0,billions,point_in_time,4,"carteira de crédito total de R$386,0",,
+itau-unibanco_3q26_brl,net_income,12.6,billions,quarter,2,"R$ 12,6 bilhões CONSOLIDADO 23,6 %",,recurring managerial
+itau-unibanco_3q26_brl,roe,23.6,percent,quarter,2,"R$ 12,6 bilhões CONSOLIDADO 23,6 %",,
+itau-unibanco_3q26_brl,efficiency_ratio,37.5,percent,quarter,2,"37,5 % CONSOLIDADO eficiência",,
+itau-unibanco_3q26_brl,cet1,12.7,percent,point_in_time,2,"Índice de Capital 12,7 principal (CET I)",,
+itau-unibanco_3q26_brl,loan_portfolio,1544,billions,point_in_time,2,1.544 R$ bilhões crédito,,
+petrobras_3q26_brl,net_revenue,169353,millions,quarter,6,Receita de vendas 169.353 169.530 127.906,,
+petrobras_3q26_brl,ebitda,85822,millions,quarter,6,EBITDA ajustado 85.822 93.843 63.913,82517 millions,"company headline = Adjusted EBITDA; plain EBITDA 82,517 acceptable"
+petrobras_3q26_brl,net_income,39750,millions,quarter,6,Lucro líquido (Prejuízo) - Acionistas Petrobras 39.750 52.445,39783 millions,
+petrobras_3q26_brl,net_debt,299696,millions,point_in_time,15,Dívida Líquida 299.696 312.602,,"BRL figure (incl. leases); the US$ 57,847 table is the wrong currency for this file"
+petrobras_3q26_brl,dividends,8079,millions,quarter,13,Dividendos pagos a acionistas da Petrobras (8.079),,
+petrobras_3q26_usd,net_revenue,32962,millions,quarter,6,Receita de vendas 32.962 33.607 23.477,,
+petrobras_3q26_usd,ebitda,16703,millions,quarter,6,EBITDA ajustado 16.703 18.615 11.728,16061 millions,"company headline = Adjusted EBITDA; plain EBITDA 16,061 acceptable"
+petrobras_3q26_usd,net_income,7740,millions,quarter,6,7.740 10.428 6.027,7747 millions,
+petrobras_3q26_usd,net_debt,57847,millions,point_in_time,6,Dívida líquida (US$ milhões) 57.847 60.388 59.053,,
+petrobras_3q26_usd,capex,6424,millions,quarter,9,Total 6.424 5.299 5.510,5402 millions,"accrual 6,424; cash-flow 5,402 acceptable"
+petrobras_3q26_usd,dividends,1569,millions,quarter,13,Dividendos pagos a acionistas da Petrobras (1.569),,
+slc-agricola_3q26_brl,net_revenue,1814068,thousands,quarter,3,"Receita líquida 6.280.882 6.257.181 -0,4% 2.087.705 1.814.068 -13,1%",,
+slc-agricola_3q26_brl,net_income,197282,thousands,quarter,19,"Atribuído aos sócios da SLC Agrícola 611.372 652.456 6,7% (10.988) 197.282",192410 thousands,"attributable 197,282; consolidated 192,410 acceptable"
+slc-agricola_3q26_brl,ebitda,463499,thousands,quarter,3,"EBITDA ajustado 2.031.606 1.739.317 -14,4% 531.381 463.499 -12,8%",729810 thousands,company headline = Adjusted EBITDA
+vale_3q26_usd,net_revenue,10599,millions,quarter,1,"Net operating revenues 10,599 10,420 2%",,
+vale_3q26_usd,ebitda,3327,millions,quarter,1,"Adjusted EBITDA 3,327 4,369 -24%",3508 millions,"Adjusted 3,327; Proforma 3,508 acceptable"
+vale_3q26_usd,net_income,1255,millions,quarter,1,"Attributable net income 1,255 2,685 -53%",,
+vale_3q26_usd,net_debt,13097,millions,point_in_time,1,"Net debt2 13,097 12,452 5%",16413 millions,"expanded net debt 16,413 acceptable"
+vale_3q26_usd,capex,1250,millions,quarter,1,"Capital expenditures 1,250 1,250 0%",,
+bunge_3q26_usd,net_income,318,millions,quarter,23,Net income (loss) attributable to Bunge $318 $166,,
+bunge_3q26_usd,net_debt,15856,millions,point_in_time,26,"Net Debt $15,856",7161 millions,"Adjusted Net Debt 7,161 acceptable"
+bunge_3q26_usd,ebitda_ltm,3728,millions,last_12_months,25,"Adjusted EBITDA $3,728",,
