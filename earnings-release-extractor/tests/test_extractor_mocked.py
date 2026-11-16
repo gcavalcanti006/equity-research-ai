@@ -295,3 +295,59 @@ def test_prompt_and_schema_ask_for_basis_scope_and_definition():
     for field in ("basis", "scope", "definition_type", "definition"):
         assert field in item["required"]
     assert "CURRENT-QUARTER" in extractor.SYSTEM_PROMPT and "NOT CET1" in extractor.SYSTEM_PROMPT
+
+
+def test_cet1_standardized_vs_advanced_is_not_a_conflict_and_standardized_is_kept():
+    from tests.helpers import fig
+    both = "Standardized ratio of 13.9% and Advanced ratio of 14.1%"   # the real quote names both approaches
+    std = fig(13.9, unit="percent", currency="none", basis="point_in_time", label="CET1 ratio",
+              definition="Basel III CET1, Standardized approach", quote=both)
+    adv = fig(14.1, unit="percent", currency="none", basis="point_in_time", label="CET1 ratio",
+              definition="Basel III CET1, Advanced approach", quote=both)
+    cands = {m: [] for m in extractor.METRICS}
+    cands["cet1"] = [adv, std]                      # Advanced appears first in the document
+    cleaned = [{"company": "JPM", "period": "3Q26", "currency": "USD", "is_bank": True,
+                "candidates": cands, "guidance": None, "tone": None}]
+    result, flags = extractor.merge_chunks("jpmorgan_3q26_usd", cleaned)
+    assert result["metrics"]["cet1"]["value"] == 13.9
+    assert flags == []
+
+
+def _cleaned(metric, figs):
+    cands = {m: [] for m in extractor.METRICS}
+    cands[metric] = figs
+    return [{"company": "X", "period": "3Q26", "currency": "BRL", "is_bank": False,
+             "candidates": cands, "guidance": None, "tone": None}]
+
+
+def test_brl_file_prefers_the_brl_figure_over_a_usd_table():
+    from tests.helpers import fig
+    usd = fig(57847, currency="USD", basis="point_in_time", definition="net debt in US$ millions")
+    brl = fig(299696, currency="BRL", basis="point_in_time", definition="net debt in R$ millions")
+    result, flags = extractor.merge_chunks("petrobras_3q26_brl", _cleaned("net_debt", [usd, brl]))
+    assert result["metrics"]["net_debt"]["currency"] == "BRL" and flags == []
+
+
+def test_net_income_attributable_is_kept_and_total_is_not_a_conflict():
+    from tests.helpers import fig
+    total = fig(1275, definition="Net income including non-controlling interests")
+    attr = fig(1255, definition="Net income attributable to the company's shareholders")
+    result, flags = extractor.merge_chunks("vale_3q26_usd", _cleaned("net_income", [total, attr]))
+    assert result["metrics"]["net_income"]["value"] == 1255 and flags == []
+
+
+def test_real_conflict_with_same_definition_is_still_flagged():
+    from tests.helpers import fig
+    a = fig(100, definition="Net income attributable to shareholders")
+    b = fig(130, definition="Net income attributable to shareholders")
+    _, flags = extractor.merge_chunks("x_3q26_usd", _cleaned("net_income", [a, b]))
+    assert len(flags) == 1
+
+
+def test_gross_debt_ratio_is_not_a_rival_of_the_net_debt_ratio():
+    from tests.helpers import fig
+    net = fig(0.8, unit="times", currency="none", basis="last_12_months", definition="Net debt / adjusted LTM EBITDA")
+    gross = fig(1.2, unit="times", currency="none", basis="last_12_months",
+                definition="Total debt and leases / LTM Adjusted EBITDA (gross debt basis)")
+    result, flags = extractor.merge_chunks("vale_3q26_usd", _cleaned("net_debt_ebitda", [gross, net]))
+    assert result["metrics"]["net_debt_ebitda"]["value"] == 0.8 and flags == []

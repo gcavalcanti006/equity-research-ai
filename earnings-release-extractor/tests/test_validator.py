@@ -202,3 +202,9 @@ def test_adjusted_leverage_vs_plain_net_debt_is_not_a_false_mismatch():
                net_debt_ebitda=fig(1.9, unit="times", currency="none", basis="last_12_months",
                                    label="Adjusted Leverage Ratio", definition="adjusted net debt / adjusted EBITDA"))
     assert types(v.check_leverage(r, 0.10, 0.10)) == [v.RATIO_NOT_CHECKABLE]
+
+
+def test_quote_numbers_survive_a_space_before_the_separator():
+    # Itau's PDF prints "1 .544,4" where the model quotes "1.544,4"
+    ok, _ = v.quote_match("Total 1.544,4 1.522,4 1,4% 1.402,0", "Total 1 .544,4 1 .522,4 1,4% 1 .402,0 10,2%")
+    assert ok

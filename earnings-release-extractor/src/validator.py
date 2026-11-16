@@ -83,7 +83,8 @@ def _plain(text):
 def _numbers(text):
     """Numbers in the text with thousands/decimal separators removed, so '1.234,5' and
     '1,234.5' both become '12345'."""
-    return {re.sub(r"[.,]", "", n) for n in re.findall(r"\d+(?:[.,]\d+)*", _plain(text))}
+    text = re.sub(r"(\d)\s+([.,]\d)", r"\1\2", _plain(text))     # PDFs sometimes print "1 .544,4" for 1.544,4
+    return {re.sub(r"[.,]", "", n) for n in re.findall(r"\d+(?:[.,]\d+)*", text)}
 
 
 def _words(text):

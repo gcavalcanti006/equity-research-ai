@@ -141,7 +141,45 @@ def _most_common(values):
     return Counter(values).most_common(1)[0][0] if values else ""
 
 
-def rank_key(metric, fig):
+def calc_approach(fig):
+    """'standardized' / 'advanced' if the figure says which regulatory calculation it uses (e.g. JPMorgan reports
+    CET1 both ways: 13.9% Standardized and 14.1% Advanced). They are two legitimate numbers, not a conflict.
+    The label/definition is checked first: the quote often mentions BOTH approaches in one sentence."""
+    for text in (f"{fig.get('label', '')} {fig.get('definition', '')}", fig.get("quote", "")):
+        text = text.lower()
+        std = bool(re.search(r"standardi[sz]ed|padroniza", text))
+        adv = bool(re.search(r"advanced|avan[cç]ad", text))
+        if std != adv:                    # exactly one of them is named
+            return "standardized" if std else "advanced"
+    return None
+
+
+def definition_tags(fig):
+    """Short tags for WHAT a figure measures, so that two figures that measure different things are not called
+    a conflict: net income attributable to shareholders vs including minorities / before preferred dividends,
+    capex on accrual vs cash-flow basis, gross vs net debt."""
+    text = f"{fig.get('label', '')} {fig.get('definition', '')}".lower()
+    tags = set()
+    if re.search(r"including non-?controlling|incl\. non-?controlling|before preferred|consolidated net income|"
+                 r"lucro l[ií]quido consolidado|incluindo", text):
+        tags.add("ni_total")
+    elif re.search(r"attributable|controlling|atribu|to common|controladores|s[oó]cios|acionistas|shareholders", text):
+        tags.add("ni_attributable")
+    if re.search(r"cash flow|fluxo de caixa|investing|aquisi[cç][aã]o de ativos|acquisitions? of property", text):
+        tags.add("cash")
+    elif re.search(r"accrual|compet[eê]ncia|total investments|total capital expenditures", text):
+        tags.add("accrual")
+    if re.search(r"gross|total debt", text):
+        tags.add("gross")
+    return tags
+
+
+def file_currency(stem):
+    """'petrobras_3q26_brl' -> 'BRL' (a Brazilian release often also has a US$ table: we want the file's own)."""
+    return normalize_currency(stem.rsplit("_", 1)[-1])
+
+
+def rank_key(metric, fig, file_ccy=None):
     """Lower is better. Order of preference when a metric appears more than once:
     1. consolidated figures over segment figures
     2. the basis we want for that metric (quarter for flows, point-in-time for balances, ...)
@@ -149,10 +187,15 @@ def rank_key(metric, fig):
     4. (CET1 only) a real CET1 over the total capital ratio
     Ties are broken by document order (earlier in the document wins)."""
     wanted = PREFERRED_BASIS.get(metric)
-    return (metric == "cet1" and looks_like_total_capital(fig),
+    money = fig.get("unit") in ("millions", "billions", "thousands")
+    return (money and file_ccy is not None and fig.get("currency") != file_ccy,   # a US$ table in a BRL file
+            "gross" in definition_tags(fig),                                       # gross debt is not net debt
+            metric == "net_income" and "ni_attributable" not in definition_tags(fig),
+            metric == "cet1" and looks_like_total_capital(fig),
             fig["scope"] != "consolidated",
             wanted is not None and fig["basis"] != wanted,
-            fig["definition_type"] != "reported")
+            fig["definition_type"] != "reported",
+            metric == "cet1" and calc_approach(fig) == "advanced")   # Standardized is the binding one
 
 
 def merge_chunks(stem, cleaned, rel_tol=0.01):
@@ -160,6 +203,7 @@ def merge_chunks(stem, cleaned, rel_tol=0.01):
     rank_key. Flag a conflict ONLY when another candidate has the same basis, scope and
     definition type as the chosen one and still differs (after unit normalization)."""
     flags = []
+    file_ccy = file_currency(stem)
     result = {"file": stem, "company": stem.split("_")[0],
               "pdf_company": _most_common([c["company"] for c in cleaned]),
               "pdf_period": _most_common([c["period"] for c in cleaned]),
@@ -171,14 +215,21 @@ def merge_chunks(stem, cleaned, rel_tol=0.01):
         if not candidates:
             result["metrics"][name] = None
             continue
-        best = min(candidates, key=lambda f: rank_key(name, f))            # first of equal ranks
+        best = min(candidates, key=lambda f: rank_key(name, f, file_ccy))            # first of equal ranks
         result["metrics"][name] = best
         kind = (best["scope"], best["basis"], best["definition_type"])
         for other in candidates:
             if other is best or (other["scope"], other["basis"], other["definition_type"]) != kind:
                 continue
+            if other.get("currency") != best.get("currency"):
+                continue        # figures in different currencies are never rivals (no conversion)
+            if definition_tags(best) != definition_tags(other):
+                continue        # they measure different things (e.g. attributable vs total net income)
             if name == "cet1" and looks_like_total_capital(other) and not looks_like_total_capital(best):
                 continue        # a total capital ratio is not a rival CET1 value
+            if name == "cet1" and calc_approach(best) and calc_approach(other) \
+                    and calc_approach(best) != calc_approach(other):
+                continue        # Standardized vs Advanced: two calculations, not a conflict
             if not same_value(best, other, rel_tol):
                 flags.append(Flag(stem, name, CHUNK_CONFLICT,
                                   f"kept {best['value']} {best['unit']} p.{best['page']} ({best['definition']}); "
