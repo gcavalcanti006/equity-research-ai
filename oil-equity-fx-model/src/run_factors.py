@@ -49,8 +49,10 @@ def run_stock(name, levels, cfg, out_dir):
     fm.rolling_coefficients(X, y, fitted, cfg["rolling_window"]).to_csv(stock_dir / "rolling_coefficients.csv")
     X.assign(y=y).corr().to_csv(stock_dir / "correlations.csv")
 
-    preds = fm.walk_forward(X, y, fm.default_models(market_cols, other_cols, cfg),
-                            cfg["min_train_days"], cfg["step_days"])
+    sector_cols = [c for c in cfg["sectors"][cfg["stocks"][name]["sector"]] if c in X.columns]
+    fx_cols = ["usdbrl"] if "usdbrl" in X.columns else []
+    models = fm.default_models(market_cols, other_cols, cfg, sector_cols, fx_cols)
+    preds = fm.walk_forward(X, y, models, cfg["min_train_days"], cfg["step_days"])
     preds.to_csv(stock_dir / "walk_forward_predictions.csv", index=False)
     ev = fm.evaluate(preds, cfg["hac_lags"])
     ev.to_csv(stock_dir / "walk_forward_metrics.csv")
@@ -58,9 +60,15 @@ def run_stock(name, levels, cfg, out_dir):
     row = {"stock": name, "days": len(y), "test_days": int(ev.loc["mean", "n_test"]),
            "factors": ",".join(market_cols + [c for c in other_cols if not c.endswith("_lag1")]),
            "missing_factors": ",".join(design["missing"]),
+           "substituted": ",".join(f"{a}->{b}" for a, b in design["substituted"].items()),
            "r2_in_sample_adj": r2_adj}
-    for model in ("capm", "factors", "factors_ridge"):
-        row[f"oos_r2_{model}"] = ev.loc[model, "r2_oos_vs_mean"]
+    for model in ("capm", "sector_fx", "factors_nolag", "factors", "factors_ridge"):
+        row[f"oos_r2_{model}"] = ev.loc[model, "r2_oos_vs_mean"] if model in ev.index else float("nan")
+    # "p" = chance of seeing this gain by luck. Gain is in squared-return units (tiny numbers).
+    for model in ("capm", "sector_fx", "factors_nolag"):
+        if model in ev.index:
+            row[f"p_factors_beats_{model}"] = ev.loc[model, "dm_p_factors_over_it"]
+            row[f"gain_factors_over_{model}"] = ev.loc[model, "dm_gain_factors_over_it"]
     row["dm_p_factors_vs_capm"] = ev.loc["factors", "dm_p_vs_capm"]
     row["dm_gain_factors_vs_capm"] = ev.loc["factors", "dm_gain_vs_capm"]
     row["coverage_80_factors"] = ev.loc["factors", "coverage_80"]
@@ -99,7 +107,11 @@ def main(config_path="config_multifactor.yaml", refresh=False, only=None):
     summary.to_csv(out_dir / "summary.csv", index=False)
     print("\nSummary saved to", out_dir / "summary.csv")
     if "oos_r2_capm" in summary:
-        print(summary.drop(columns=[c for c in ("factors",) if c in summary]).round(3).to_string(index=False))
+        show = ["stock", "oos_r2_capm", "oos_r2_sector_fx", "oos_r2_factors_nolag", "oos_r2_factors",
+                "p_factors_beats_capm", "p_factors_beats_sector_fx", "p_factors_beats_factors_nolag",
+                "coverage_80_factors"]
+        print("\nOut-of-sample R2 (higher is better) and the p-value that the full model beats each simpler one:")
+        print(summary[[c for c in show if c in summary]].round(3).to_string(index=False))
 
 
 if __name__ == "__main__":

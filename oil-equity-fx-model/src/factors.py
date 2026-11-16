@@ -37,7 +37,8 @@ def to_changes(aligned, rate_series):
         if col in rate_series:
             out[col] = s.diff()
         else:
-            out[col] = np.log(s / s.shift(1))
+            s = s.where(s > 0)                    # a price of 0 or below (e.g. WTI in April 2020) has no log
+            out[col] = np.log(s / s.shift(1)).replace([np.inf, -np.inf], np.nan)
     return pd.DataFrame(out)
 
 
@@ -70,6 +71,14 @@ def make_design(levels, stock, cfg):
         + list(cfg["sectors"][info["sector"]])
     wanted = list(dict.fromkeys(wanted))               # remove duplicates, keep order
     missing = [f for f in wanted if f not in changes or changes[f].dropna().empty]
+    substituted = {}                                   # e.g. iron_ore -> iron_proxy when the real series failed
+    for f in list(missing):
+        fb = cfg.get("factor_fallbacks", {}).get(f)
+        if fb and fb in changes and not changes[fb].dropna().empty:
+            wanted = [fb if w == f else w for w in wanted]
+            substituted[f] = fb
+    wanted = list(dict.fromkeys(wanted))
+    missing = [f for f in missing if f not in substituted]
     used = [f for f in wanted if f not in missing]
     if market in missing:
         return {"error": f"market factor '{market}' is not available"}
@@ -81,4 +90,4 @@ def make_design(levels, stock, cfg):
     data = pd.concat([changes[stock].rename("y"), X], axis=1).dropna()
     other = [c for c in data.columns if c not in ("y", market)]
     return {"X": data.drop(columns="y"), "y": data["y"], "market_cols": [market],
-            "other_cols": other, "missing": missing}
+            "other_cols": other, "missing": missing, "substituted": substituted}

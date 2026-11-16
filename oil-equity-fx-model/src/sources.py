@@ -6,6 +6,7 @@ Rules:
 - Snapshots live in data/snapshots/<name>.csv. Delete a file (or run with --refresh) to re-download.
 - Everything returned is a LEVEL series (a price or a yield), indexed by calendar date.
 """
+import json
 from datetime import date
 from io import StringIO
 from pathlib import Path
@@ -67,6 +68,21 @@ def fetch_bcb(code, start, end):
     return _clean_index(s)
 
 
+def fetch_first_working(tickers, start, end, min_rows=100):
+    """Try several Yahoo tickers for the same thing (e.g. iron ore); keep the first that has data."""
+    errors = []
+    for t in tickers:
+        try:
+            s = fetch_yahoo(t, start, end)
+            if len(s) >= min_rows:
+                print(f"    (using ticker {t})")
+                return s
+            errors.append(f"{t}: only {len(s)} rows")
+        except Exception as exc:
+            errors.append(f"{t}: {type(exc).__name__}")
+    raise RuntimeError("no candidate worked -> " + "; ".join(errors))
+
+
 def load_manual_csv(path, start, end):
     """Optional file with Brazilian yields you downloaded yourself.
     Needs a 'date' column (YYYY-MM-DD) and one column per series (e.g. br2y, br10y), in % a.a."""
@@ -88,6 +104,19 @@ def _read_snapshot(path):
     return s
 
 
+def _load_meta(snap):
+    path = Path(snap) / "_meta.json"
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def _is_stale(name, snapshot, meta, start):
+    """Re-download when you now ask for MORE history than the saved file covers."""
+    asked = pd.Timestamp(start)
+    if name in meta:
+        return asked < pd.Timestamp(meta[name]["start"]) - pd.Timedelta(days=3)
+    return snapshot.index[0] > asked + pd.Timedelta(days=30)      # old snapshot without notes
+
+
 def load_all(cfg, start, end, refresh=False):
     """Return (levels DataFrame, list of problems). One column per series name in the config."""
     snap = Path(cfg["snapshot_dir"])
@@ -95,21 +124,25 @@ def load_all(cfg, start, end, refresh=False):
     jobs = {}
     for name, ticker in cfg.get("yahoo", {}).items():
         jobs[name] = lambda t=ticker: fetch_yahoo(t, start, end)
+    for name, tickers in cfg.get("yahoo_candidates", {}).items():
+        jobs[name] = lambda t=tickers: fetch_first_working(t, start, end)
     for name, sid in cfg.get("fred", {}).items():
         jobs[name] = lambda s=sid: fetch_fred(s, start, end)
     for name, code in cfg.get("bcb", {}).items():
         jobs[name] = lambda c=code: fetch_bcb(c, start, end)
 
+    meta = _load_meta(snap)
     series, problems = {}, []
     for name, job in jobs.items():
         path = _snapshot_path(snap, name)
         try:
-            if path.exists() and not refresh:
-                s = _read_snapshot(path)
-                source = "snapshot"
+            saved = _read_snapshot(path) if path.exists() else None
+            if saved is not None and not refresh and not _is_stale(name, saved, meta, start):
+                s, source = saved, "snapshot"
             else:
                 s = job()
                 s.rename(name).to_frame().to_csv(path)
+                meta[name] = {"start": str(start), "end": str(end)}
                 source = "downloaded"
             series[name] = s
             print(f"  {name:10s} {source:10s} {len(s):5d} rows  {s.index[0].date()} -> {s.index[-1].date()}")
@@ -117,6 +150,7 @@ def load_all(cfg, start, end, refresh=False):
             problems.append(f"{name}: {type(exc).__name__}: {exc}")
             print(f"  {name:10s} FAILED      {type(exc).__name__}: {exc}")
 
+    (Path(snap) / "_meta.json").write_text(json.dumps(meta, indent=1))
     manual = cfg.get("br_yields_csv")
     if manual:
         try:

@@ -1,8 +1,9 @@
 # Multi-factor model settings. Add a stock or a factor here; no code change needed.
-# Run:  .venv/bin/python -m src.run_factors            (uses saved snapshots when they exist)
+# Run:  .venv/bin/python -m src.run_factors            (data snapshots are reused when they exist)
 #       .venv/bin/python -m src.run_factors --refresh  (downloads everything again)
+#       .venv/bin/python -m src.run_scenarios          (scenarios + historical test; run run_factors first)
 
-years: 5                  # years of daily data
+years: 10                 # years of daily data (more history = more past episodes to test on)
 start_date: null          # set both (YYYY-MM-DD) to override "years"
 end_date: null
 snapshot_dir: "data/snapshots"
@@ -23,6 +24,11 @@ yahoo:
   coffee: "KC=F"
   copper: "HG=F"
   gold: "GC=F"
+  iron_proxy: "FMG.AX"    # Fortescue: almost pure iron ore. Only a PROXY, used if no real iron ore price works.
+yahoo_candidates:         # same thing, several possible tickers: the first one that works is kept
+  iron_ore: ["TIO=F"]     # CME iron ore 62% Fe futures. Not confirmed on Yahoo: the run says if it worked.
+factor_fallbacks:         # if a factor cannot be downloaded, use this one instead (and say so)
+  iron_ore: iron_proxy
 fred:                     # US Treasury yields, % a.a. (no key needed)
   us2y: "DGS2"
   us10y: "DGS10"
@@ -42,21 +48,50 @@ market:                   # the stock's own market index (the CAPM benchmark)
 common_factors:           # used for every stock of that country
   BR: [usdbrl, sp500, us10y, us_slope, vix]
   US: [us10y, us_slope, vix, dxy]
-sectors:                  # sector-specific commodity factors
+sectors:                  # sector-specific commodity factors (the FIRST one is the 'key' factor of the sector)
   oil: [brent]
   agro: [soy, corn, sugar]
-  mining: [copper]
+  mining: [iron_ore, copper]
 lagged_factors: [sp500, us10y, us_slope, vix]   # also add yesterday's value (US closes after B3)
 
+# 5 stocks per sector and country. Tickers are Yahoo tickers; a ticker that fails is skipped and reported.
 stocks:
+  # oil, Brazil
   petr4: {ticker: "PETR4.SA", country: BR, sector: oil}
   prio3: {ticker: "PRIO3.SA", country: BR, sector: oil}
-  vale3: {ticker: "VALE3.SA", country: BR, sector: mining}
+  recv3: {ticker: "RECV3.SA", country: BR, sector: oil}
+  brav3: {ticker: "BRAV3.SA", country: BR, sector: oil}
+  vbbr3: {ticker: "VBBR3.SA", country: BR, sector: oil}
+  # oil, US
+  xom: {ticker: "XOM", country: US, sector: oil}
+  cvx: {ticker: "CVX", country: US, sector: oil}
+  cop: {ticker: "COP", country: US, sector: oil}
+  eog: {ticker: "EOG", country: US, sector: oil}
+  oxy: {ticker: "OXY", country: US, sector: oil}
+  # agro, Brazil
   slce3: {ticker: "SLCE3.SA", country: BR, sector: agro}
-  xom:   {ticker: "XOM",      country: US, sector: oil}
-  cvx:   {ticker: "CVX",      country: US, sector: oil}
-  adm:   {ticker: "ADM",      country: US, sector: agro}
-  bg:    {ticker: "BG",       country: US, sector: agro}
+  smto3: {ticker: "SMTO3.SA", country: BR, sector: agro}
+  tten3: {ticker: "TTEN3.SA", country: BR, sector: agro}
+  agro3: {ticker: "AGRO3.SA", country: BR, sector: agro}
+  raiz4: {ticker: "RAIZ4.SA", country: BR, sector: agro}
+  # agro, US
+  adm: {ticker: "ADM", country: US, sector: agro}
+  bg: {ticker: "BG", country: US, sector: agro}
+  ctva: {ticker: "CTVA", country: US, sector: agro}
+  de: {ticker: "DE", country: US, sector: agro}
+  mos: {ticker: "MOS", country: US, sector: agro}
+  # mining and steel, Brazil
+  vale3: {ticker: "VALE3.SA", country: BR, sector: mining}
+  cmin3: {ticker: "CMIN3.SA", country: BR, sector: mining}
+  csna3: {ticker: "CSNA3.SA", country: BR, sector: mining}
+  ggbr4: {ticker: "GGBR4.SA", country: BR, sector: mining}
+  usim5: {ticker: "USIM5.SA", country: BR, sector: mining}
+  # mining and steel, US
+  fcx: {ticker: "FCX", country: US, sector: mining}
+  scco: {ticker: "SCCO", country: US, sector: mining}
+  clf: {ticker: "CLF", country: US, sector: mining}
+  nue: {ticker: "NUE", country: US, sector: mining}
+  stld: {ticker: "STLD", country: US, sector: mining}
 
 # ---- evaluation ----
 min_train_days: 500       # first model is fitted on at least this many days
@@ -66,5 +101,30 @@ orthogonalize: true       # remove each factor's market part before fitting (see
 ridge_alpha: 10.0
 rolling_window: 252       # days, for the coefficient-drift table
 
+# ---- scenarios ("what if ...") ----
+# Shocks: prices as a fraction (-0.20 = -20%), yields in percentage points (+1.0 = +100 bp).
+# A stock is only shown for scenarios that shock at least one factor it uses.
+reliable_p_max: 0.01        # a stock is marked 'reliable' only if the full model beats market-only with p below this
+scenario_horizon_days: 22   # about one trading month
+scenarios:
+  oil_down:      {shocks: {brent: -0.20, usdbrl: 0.05}}
+  oil_up:        {shocks: {brent: 0.20}}
+  risk_off:      {shocks: {sp500: -0.10, vix: 0.50}}
+  brazil_stress: {shocks: {usdbrl: 0.10, ibov: -0.10}}
+  us_rates_up:   {shocks: {us10y: 1.0}}
+  soy_down:      {shocks: {soy: -0.15}}
+  china_slowdown: {shocks: {iron_ore: -0.20, copper: -0.15}}
+
+# Past episodes for the historical test (CHECK THESE DATES: written from memory, approximate).
+# The model is fitted only on days before 'start'.
+episodes:
+  covid_crash:      {start: 2020-02-20, end: 2020-03-23}
+  russia_ukraine:   {start: 2022-02-23, end: 2022-03-08}
+  svb_2023:         {start: 2023-03-08, end: 2023-03-17}
+  tariffs_2025:     {start: 2025-04-02, end: 2025-04-08}
+auto_episode_days: 10     # plus, per stock: the k worst and k best 10-day moves of its key factor
+auto_episode_k: 3
+
 paths:
   outputs: "outputs/multifactor"
+scenario_outputs: "outputs/scenarios"

@@ -129,3 +129,22 @@ def test_unknown_sector_gives_a_clear_error(tmp_path):
     lv["vale3"] = lv["petr4"]
     d = factors.make_design(lv, "vale3", cfg)
     assert "sector 'mining'" in d["error"]
+
+
+def test_comparison_models_are_in_the_same_walk_forward(tmp_path):
+    cfg, d = _design(tmp_path, n=1200, brent_beta=0.30, noise=0.010)
+    X, y = d["X"], d["y"]
+    models = fm.default_models(d["market_cols"], d["other_cols"], cfg, ["brent"], ["usdbrl"])
+    assert set(models) == {"mean", "capm", "factors", "factors_nolag", "factors_ridge", "sector_fx"}
+    ev = fm.evaluate(fm.walk_forward(X, y, models, 300, 21))
+    assert ev.loc["sector_fx", "dm_gain_factors_over_it"] > 0 and ev.loc["sector_fx", "dm_p_factors_over_it"] < 0.05
+    # in this fake world yesterday's values carry no information: dropping them changes little
+    assert abs(ev.loc["factors_nolag", "r2_oos_vs_mean"] - ev.loc["factors", "r2_oos_vs_mean"]) < 0.03
+
+
+def test_run_stock_summary_has_the_comparison_columns(tmp_path):
+    cfg = make_cfg(tmp_path)
+    row = run_factors.run_stock("petr4", make_levels(900), cfg, tmp_path / "out")
+    for k in ("oos_r2_sector_fx", "oos_r2_factors_nolag", "p_factors_beats_capm",
+              "p_factors_beats_sector_fx", "p_factors_beats_factors_nolag"):
+        assert k in row

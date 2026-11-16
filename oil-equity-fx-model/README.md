@@ -105,9 +105,37 @@ multi-factor model for several stocks (Brazil and US; oil, agriculture, mining).
 - **Evaluation**: expanding-window walk-forward. Every model is compared with (1) the running mean and
   (2) market-index-only (CAPM). Reported: out-of-sample R², Diebold-Mariano p-value of "factors vs CAPM",
   hit rate and the coverage of the 80% prediction interval (should be close to 80%).
+- **Models compared in the same test**: `mean`, `capm` (market index only), `sector_fx` (the original
+  project's idea: sector commodity + USD/BRL, no market index), `factors` (full), `factors_nolag`
+  (full without the "yesterday" columns) and `factors_ridge`. The summary prints the p-value that the
+  full model really beats each simpler one.
+- **This measures explanation, not forecasting**: the factors are same-day returns. Out-of-sample R²
+  says the relationship holds on data the model has not seen; it does not predict tomorrow.
 - **Outputs** in `outputs/multifactor/`: `summary.csv` and, per stock, full-sample coefficients, VIF,
   rolling coefficients, correlations, walk-forward predictions and metrics.
 - **Brazilian 2y/10y yields** are not downloaded automatically (no verified free daily source yet).
   Put your own CSV (`date,br2y,br10y`) in the path `br_yields_csv` and add `br10y` / `br_slope` to
   `common_factors.BR`.
 - Iron ore is not on Yahoo in a reliable form, so copper is used as the mining/China proxy for now.
+
+## Scenarios and historical test (phase 2)
+```bash
+.venv/bin/python -m src.run_factors      # first: data + evidence of which stocks the model explains
+.venv/bin/python -m src.run_scenarios    # scenarios + historical test
+```
+- **Universe**: 30 stocks = 5 per sector (oil, agro, mining/steel) in Brazil and in the US, all in
+  `config_multifactor.yaml`. 10 years of daily data.
+- **Iron ore**: the run tries `TIO=F` (CME iron ore futures) on Yahoo. If it fails, `FMG.AX` (Fortescue, almost
+  pure iron ore) is used as a **proxy** and the output says so. The only free iron ore series confirmed is
+  monthly (FRED `PIORECRUSDM`), too slow for a daily model.
+- **Scenarios** (`src/scenarios.py`): shocks to factors (prices as fractions, yields in percentage points) become an expected
+  move of each stock with an 80% range. Two readings: `only_shocked`, and `with_correlations` (the other
+  factors move as they usually do). Shocks bigger than anything in the sample are flagged `beyond_history`.
+- **Historical test**: for past episodes (named ones in the config + the 3 worst and 3 best 10-day moves of each
+  stock's key factor) the model is fitted only on days before the episode, fed the REAL factor moves of the
+  episode, and compared with the real stock move, against market-only and "no move". It tests the translation
+  factor -> stock, not the forecasting of the factors.
+- **Reliable** = the full model beat market-only out of sample with p < `reliable_p_max` (0.01). Printed scenario
+  tables only list reliable stocks; the CSV has all of them. With 30 stocks tested, some false positives are possible.
+- Limits: linear model (large shocks are extrapolations), ranges assume independent daily errors (crashes have
+  fatter tails), episode dates in the config were written from memory: check them.

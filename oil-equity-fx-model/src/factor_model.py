@@ -70,14 +70,28 @@ class MeanModel:
         return np.full(len(X), self.mean_)
 
 
-def default_models(market_cols, other_cols, cfg):
-    return {
+def default_models(market_cols, other_cols, cfg, sector_cols=(), fx_cols=()):
+    """All models that go through the same walk-forward test.
+
+    mean           : the running average (no information)
+    capm           : market index only
+    sector_fx      : like the ORIGINAL project: sector commodity + exchange rate, NO market index
+    factors        : market + every factor (the full model)
+    factors_nolag  : the full model without the 'yesterday' (_lag1) columns
+    factors_ridge  : the full model with shrinkage (ridge)"""
+    no_lag = [c for c in other_cols if not c.endswith("_lag1")]
+    old_spec = list(sector_cols) + list(fx_cols)
+    models = {
         "mean": lambda: MeanModel(),
         "capm": lambda: FactorModel(market_cols, [], orthogonalize=False),
         "factors": lambda: FactorModel(market_cols, other_cols, orthogonalize=cfg["orthogonalize"]),
+        "factors_nolag": lambda: FactorModel(market_cols, no_lag, orthogonalize=cfg["orthogonalize"]),
         "factors_ridge": lambda: FactorModel(market_cols, other_cols, orthogonalize=cfg["orthogonalize"],
                                              method="ridge", alpha=cfg["ridge_alpha"]),
     }
+    if old_spec:
+        models["sector_fx"] = lambda: FactorModel([], old_spec, orthogonalize=False)
+    return models
 
 
 def walk_forward(X, y, factories, min_train, step):
@@ -133,6 +147,16 @@ def evaluate(preds, hac_lags=5):
                 continue
             gain, p = dm_test(piv[name]["actual"] - piv[name]["pred"], err_capm, hac_lags)
             table.loc[name, ["dm_gain_vs_capm", "dm_p_vs_capm"]] = [gain, p]
+    # Is the full model better than each simpler model? (positive gain and small p = yes)
+    table["dm_p_factors_over_it"] = np.nan
+    table["dm_gain_factors_over_it"] = np.nan
+    if "factors" in piv:
+        err_full = piv["factors"]["actual"] - piv["factors"]["pred"]
+        for name in table.index:
+            if name in ("factors", "mean"):
+                continue
+            gain, p = dm_test(err_full, piv[name]["actual"] - piv[name]["pred"], hac_lags)
+            table.loc[name, ["dm_gain_factors_over_it", "dm_p_factors_over_it"]] = [gain, p]
     return table
 
 
