@@ -84,3 +84,30 @@ What this says:
 - **Single train/test split.** One test year is one draw; results could differ with other
   periods.
 - Brent futures (`BZ=F`) are a continuous contract: roll dates can create small jumps.
+
+## Multi-factor model (phase 1)
+`config_multifactor.yaml` + `src/run_factors.py` extend the project from "oil + FX" to a general
+multi-factor model for several stocks (Brazil and US; oil, agriculture, mining).
+
+```bash
+.venv/bin/python -m src.run_factors            # uses saved snapshots in data/snapshots/
+.venv/bin/python -m src.run_factors --refresh  # downloads everything again
+.venv/bin/python -m src.run_factors --only petr4
+```
+- **Data** (`src/sources.py`): Yahoo (stocks, indices, commodities, FX, VIX), FRED (US 2y/10y yields,
+  no key needed), Banco Central (Selic). Every series is saved in `data/snapshots/`, so a run is
+  reproducible. A series that fails to download is skipped and reported.
+- **Factors** (`src/factors.py`): each stock is evaluated on its own trading calendar; prices become
+  log returns and yields become changes in percentage points; US factors also get a 1-day lag
+  (US markets close after B3).
+- **Model** (`src/factor_model.py`): stock return = market index + FX + yields + curve slope + VIX +
+  sector commodities. Optionally each factor is cleaned of its market part first, using training data only.
+- **Evaluation**: expanding-window walk-forward. Every model is compared with (1) the running mean and
+  (2) market-index-only (CAPM). Reported: out-of-sample R², Diebold-Mariano p-value of "factors vs CAPM",
+  hit rate and the coverage of the 80% prediction interval (should be close to 80%).
+- **Outputs** in `outputs/multifactor/`: `summary.csv` and, per stock, full-sample coefficients, VIF,
+  rolling coefficients, correlations, walk-forward predictions and metrics.
+- **Brazilian 2y/10y yields** are not downloaded automatically (no verified free daily source yet).
+  Put your own CSV (`date,br2y,br10y`) in the path `br_yields_csv` and add `br10y` / `br_slope` to
+  `common_factors.BR`.
+- Iron ore is not on Yahoo in a reliable form, so copper is used as the mining/China proxy for now.

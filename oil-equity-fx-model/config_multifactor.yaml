@@ -1,0 +1,70 @@
+# Multi-factor model settings. Add a stock or a factor here; no code change needed.
+# Run:  .venv/bin/python -m src.run_factors            (uses saved snapshots when they exist)
+#       .venv/bin/python -m src.run_factors --refresh  (downloads everything again)
+
+years: 5                  # years of daily data
+start_date: null          # set both (YYYY-MM-DD) to override "years"
+end_date: null
+snapshot_dir: "data/snapshots"
+max_ffill_days: 2         # fill gaps of at most this many days (other markets' holidays)
+
+# ---- raw series (name: ticker). Stocks are added automatically from the 'stocks' block below. ----
+yahoo:
+  ibov: "^BVSP"           # Ibovespa
+  sp500: "^GSPC"
+  vix: "^VIX"
+  dxy: "DX-Y.NYB"         # US dollar index
+  usdbrl: "BRL=X"
+  brent: "BZ=F"
+  wti: "CL=F"
+  soy: "ZS=F"             # CBOT soybeans (US cents per bushel)
+  corn: "ZC=F"
+  sugar: "SB=F"
+  coffee: "KC=F"
+  copper: "HG=F"
+  gold: "GC=F"
+fred:                     # US Treasury yields, % a.a. (no key needed)
+  us2y: "DGS2"
+  us10y: "DGS10"
+bcb:                      # Brazilian central bank (SGS code)
+  selic: 432              # Selic target rate, % a.a. (stored for later; not a daily factor yet)
+
+# Optional: Brazilian 2y/10y yields you downloaded yourself. CSV with columns: date,br2y,br10y (% a.a.)
+# If set, add br10y / br_slope to 'common_factors.BR' below to use them.
+br_yields_csv: null
+
+rate_series: []           # extra columns to treat as yields (change in pp) instead of prices
+
+# ---- which factors explain which stock ----
+market:                   # the stock's own market index (the CAPM benchmark)
+  BR: ibov
+  US: sp500
+common_factors:           # used for every stock of that country
+  BR: [usdbrl, sp500, us10y, us_slope, vix]
+  US: [us10y, us_slope, vix, dxy]
+sectors:                  # sector-specific commodity factors
+  oil: [brent]
+  agro: [soy, corn, sugar]
+  mining: [copper]
+lagged_factors: [sp500, us10y, us_slope, vix]   # also add yesterday's value (US closes after B3)
+
+stocks:
+  petr4: {ticker: "PETR4.SA", country: BR, sector: oil}
+  prio3: {ticker: "PRIO3.SA", country: BR, sector: oil}
+  vale3: {ticker: "VALE3.SA", country: BR, sector: mining}
+  slce3: {ticker: "SLCE3.SA", country: BR, sector: agro}
+  xom:   {ticker: "XOM",      country: US, sector: oil}
+  cvx:   {ticker: "CVX",      country: US, sector: oil}
+  adm:   {ticker: "ADM",      country: US, sector: agro}
+  bg:    {ticker: "BG",       country: US, sector: agro}
+
+# ---- evaluation ----
+min_train_days: 500       # first model is fitted on at least this many days
+step_days: 21             # re-fit every ~month (expanding window)
+hac_lags: 5
+orthogonalize: true       # remove each factor's market part before fitting (see factor_model.py)
+ridge_alpha: 10.0
+rolling_window: 252       # days, for the coefficient-drift table
+
+paths:
+  outputs: "outputs/multifactor"
