@@ -1,0 +1,285 @@
+"""Equity research dashboard: puts the two projects side by side.
+
+  Tab 1  Factor model   which stocks the model really explains, and how betas drift
+  Tab 2  Scenarios      "what if Brent falls 20%?" + how the model did in past crises
+  Tab 3  Fundamentals   earnings-release extractor: ratios, flags and accuracy vs a hand-checked golden set
+
+Run:  streamlit run dashboard/app.py      (from the equity-research-ai folder)
+It only READS the output files of the two projects; the live scenario box also refits the model locally
+from the saved data snapshots (no API key, no cost).
+"""
+import importlib.util
+import os
+import sys
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+OIL = ROOT / "oil-equity-fx-model"
+EXT = ROOT / "earnings-release-extractor"
+MF = OIL / "outputs" / "multifactor"
+SC = OIL / "outputs" / "scenarios"
+
+st.set_page_config(page_title="Equity research dashboard", layout="wide")
+
+
+# ---------------------------------------------------------------- data loading
+@st.cache_data
+def read_csv(path, **kw):
+    p = Path(path)
+    return pd.read_csv(p, **kw) if p.exists() else None
+
+
+@st.cache_data
+def stock_info():
+    cfg = yaml.safe_load((OIL / "config_multifactor.yaml").read_text())
+    return {k: v for k, v in cfg["stocks"].items()}, cfg
+
+
+@st.cache_resource(show_spinner="Loading saved market data (first time only)...")
+def oil_world():
+    """Imports the oil model code and loads the saved snapshots. Both projects have a package called `src`,
+    so this one is loaded only here, with the oil folder as working directory."""
+    os.chdir(OIL)
+    if str(OIL) not in sys.path:
+        sys.path.insert(0, str(OIL))
+    from src import factors, scenarios, sources
+    from src.run_factors import date_range, load_config
+    cfg = load_config("config_multifactor.yaml")
+    start, end = date_range(cfg)
+    levels, problems = sources.load_all(cfg, start, end)
+    return cfg, levels, factors, scenarios, problems
+
+
+def reliable_flag(row, p_max):
+    return bool(row["p_factors_beats_capm"] < p_max and row["oos_r2_factors"] > row["oos_r2_capm"])
+
+
+stocks, raw_cfg = stock_info()
+p_max = raw_cfg.get("reliable_p_max", 0.01)
+summary = read_csv(MF / "summary.csv")
+
+st.title("Equity research dashboard")
+st.caption("Commodity-linked stocks (oil, agro, mining/steel; Brazil and US) + earnings-release extractor. "
+           "Built to show what the models can and cannot do, not to give trading advice.")
+
+tab1, tab2, tab5, tab3, tab4 = st.tabs(["Factor model", "Scenarios", "Months horizon", "Fundamentals", "About / limits"])
+
+# ================================================================= TAB 1
+with tab1:
+    if summary is None:
+        st.warning("No model results yet. Run `python -m src.run_factors` in oil-equity-fx-model.")
+    else:
+        s = summary[summary["error"].isna()].copy()
+        s["sector"] = s["stock"].map(lambda k: stocks.get(k, {}).get("sector"))
+        s["country"] = s["stock"].map(lambda k: stocks.get(k, {}).get("country"))
+        s["reliable"] = s.apply(lambda r: reliable_flag(r, p_max), axis=1)
+
+        st.subheader("Which stocks does the model explain?")
+        st.write(f"**Reliable** = the full factor model beats a market-only model out of sample with p < {p_max} "
+                 f"(strict on purpose: with {len(s)} stocks tested, a few would pass at 0.05 by luck).")
+        c1, c2 = st.columns(2)
+        sectors = c1.multiselect("Sector", sorted(s["sector"].dropna().unique()), default=sorted(s["sector"].dropna().unique()))
+        countries = c2.multiselect("Country", sorted(s["country"].dropna().unique()), default=sorted(s["country"].dropna().unique()))
+        view = s[s["sector"].isin(sectors) & s["country"].isin(countries)].sort_values("oos_r2_factors", ascending=False)
+        table = view[["stock", "country", "sector", "oos_r2_capm", "oos_r2_factors", "p_factors_beats_capm",
+                      "coverage_80_factors", "reliable"]].rename(columns={
+            "oos_r2_capm": "R² market only", "oos_r2_factors": "R² full model",
+            "p_factors_beats_capm": "p-value vs market only", "coverage_80_factors": "80% range hit rate"})
+        st.dataframe(table.round(3), width="stretch", hide_index=True)
+        st.bar_chart(view.set_index("stock")[["oos_r2_capm", "oos_r2_factors"]]
+                     .rename(columns={"oos_r2_capm": "market only", "oos_r2_factors": "full model"}))
+        st.caption("R² = share of the stock's daily moves explained OUT OF SAMPLE (walk-forward, never using the future). "
+                   "It explains same-day relationships; it is not a forecast of the factors themselves.")
+
+        st.subheader("One stock in detail")
+        pick = st.selectbox("Stock", list(view["stock"]) or list(s["stock"]), key="t1_stock")
+        ols = read_csv(MF / pick / "ols_full_sample.csv", index_col=0)
+        roll = read_csv(MF / pick / "rolling_coefficients.csv", index_col=0, parse_dates=True)
+        left, right = st.columns(2)
+        if ols is not None:
+            o = ols.drop(index="const", errors="ignore")
+            left.markdown("**Sensitivity to each factor (full sample)**")
+            left.bar_chart(o["coef"])
+            left.caption("Prices: effect on the stock's log return per 1 unit of the factor's log return. "
+                         "Yields: per 1 percentage point. Factors are cleaned of the market move first.")
+        if roll is not None:
+            factor = right.selectbox("Rolling coefficient of", [c for c in roll.columns if c != "const"], key="t1_factor")
+            right.markdown("**How that sensitivity drifted over time**")
+            right.line_chart(roll[factor])
+
+# ================================================================= TAB 2
+with tab2:
+    scen = read_csv(SC / "scenario_results.csv")
+    eps = read_csv(SC / "backtest_episodes.csv")
+    if scen is None:
+        st.warning("No scenario results yet. Run `python -m src.run_scenarios` in oil-equity-fx-model.")
+    else:
+        names = sorted(scen["stock"].unique())
+        pick2 = st.selectbox("Stock", names, key="t2_stock")
+        rel = scen.loc[scen["stock"] == pick2, "reliable"].iloc[0]
+        if rel is True or str(rel) == "True":
+            st.success("The model is **reliable** for this stock (beats market-only out of sample).")
+        else:
+            st.warning("The model is **not shown to be reliable** for this stock. Treat results as illustrative.")
+
+        st.subheader("Preset scenarios")
+        reading = st.radio("Reading", ["with_correlations", "only_shocked"], horizontal=True,
+                           help="with_correlations: the other factors move too, the way they usually do when the named "
+                                "ones move (mixes in things that happen together, not only cause and effect). "
+                                "only_shocked: only the factors you named move.")
+        d = scen[(scen["stock"] == pick2) & (scen["reading"] == reading)]
+        show = d[["scenario", "shocks_applied", "horizon_days", "impact_pct", "low_80_pct", "high_80_pct"]].round(1)
+        st.dataframe(show, width="stretch", hide_index=True)
+        st.bar_chart(d.set_index("scenario")["impact_pct"])
+        st.caption("Impact = expected stock move (%) over the horizon, minus what the model predicts with no shock. "
+                   "The 80% range is widened for crises, but in past crashes US oil stocks were still covered only ~58% "
+                   "of the time: read the range as a minimum.")
+
+        st.subheader("Your own scenario (live)")
+        try:
+            cfg, levels, factors, scenarios, problems = oil_world()
+            design = factors.make_design(levels, pick2, cfg)
+            X = design["X"]
+            base = scenarios.base_columns(X)
+            rate_cols = factors.rate_names(cfg, X.columns)
+            st.write("Move any factor, leave the others at 0. Prices in %, yields in percentage points.")
+            cols = st.columns(3)
+            shocks = {}
+            for i, f in enumerate(base):
+                if f in rate_cols:
+                    v = cols[i % 3].slider(f"{f} (pp)", -3.0, 3.0, 0.0, 0.25, key=f"sh_{pick2}_{f}")
+                else:
+                    v = cols[i % 3].slider(f"{f} (%)", -50, 50, 0, 1, key=f"sh_{pick2}_{f}") / 100
+                if v:
+                    shocks[f] = v
+            horizon = st.slider("Horizon (trading days)", 5, 66, int(cfg["scenario_horizon_days"]), key="hz")
+            if shocks:
+                spec = {"custom": {"shocks": shocks, "horizon_days": horizon}}
+                rows = scenarios.run_scenarios(X, design["y"], design["market_cols"], design["other_cols"],
+                                               cfg, spec, rate_cols, design["substituted"])
+                out = pd.DataFrame(rows)[["reading", "impact_pct", "low_80_pct", "high_80_pct", "beyond_history"]]
+                st.dataframe(out.round(1), width="stretch", hide_index=True)
+                if out["beyond_history"].astype(str).str.len().gt(0).any():
+                    st.warning("Part of this shock is bigger than anything in the sample: the linear model is extrapolating.")
+            else:
+                st.info("Move at least one slider to run a scenario.")
+        except Exception as exc:       # the live part needs the saved snapshots; the rest of the page still works
+            st.info(f"Live scenarios unavailable here ({type(exc).__name__}: {exc}).")
+
+        st.subheader("Would it have worked? Past episodes")
+        if eps is not None:
+            e = eps[(eps["stock"] == pick2) & eps["skipped"].isna()].copy()
+            if len(e):
+                e["label"] = e["episode"] + " (" + e["start"].astype(str) + ")"
+                st.dataframe(e[["episode", "start", "end", "days", "actual_pct", "model_pct", "capm_pct", "inside_80"]]
+                             .round(1), width="stretch", hide_index=True)
+                st.bar_chart(e.set_index("label")[["actual_pct", "model_pct", "capm_pct"]])
+                st.caption("The model is fitted ONLY on days before each episode, then fed the factor moves that really "
+                           "happened. It tests the translation factor -> stock, not whether anyone could forecast the factors.")
+            else:
+                st.info("No episodes with enough earlier history for this stock.")
+
+
+# ================================================================= TAB 5 (months horizon)
+with tab5:
+    LH = OIL / "outputs" / "long_horizon"
+    lh = read_csv(LH / "summary.csv")
+    st.subheader("Do the factors EXPLAIN the price over months? Do they PREDICT it?")
+    st.write("Two different questions. **Explain**: over the same 1- or 3-month window, how much of the stock's move do the "
+             "factors' moves account for? (You would need to know the factors in advance.) **Predict**: do the factors' "
+             "moves over the LAST window help forecast the stock's NEXT window? That is the only one a trader could use.")
+    if lh is None:
+        st.warning("No results yet. Run `python -m src.run_long_horizon` in oil-equity-fx-model.")
+    else:
+        ok = lh[lh["error"].isna()] if "error" in lh else lh
+        h = st.radio("Horizon (trading days)", sorted(ok["horizon_days"].unique()), horizontal=True,
+                     format_func=lambda d: f"{d} days (~{round(d / 21)} month{'s' if d > 25 else ''})")
+        v = ok[ok["horizon_days"] == h].sort_values("explain_r2_full", ascending=False)
+        n_pred = int(((v["predict_r2_full"] > 0) & (v["predict_p_full_vs_mean"] < p_max)).sum())
+        a, b, c = st.columns(3)
+        a.metric("Stocks tested", len(v))
+        b.metric("Explained better than market-only", int((v["verdict"].str.startswith("explains")).sum()))
+        c.metric(f"Predicted better than a running average (p < {p_max})", n_pred)
+        st.dataframe(v[["stock", "country", "sector", "n_windows", "explain_r2_capm", "explain_r2_full",
+                        "predict_r2_full", "predict_p_full_vs_mean", "verdict"]].round(2),
+                     width="stretch", hide_index=True)
+        st.bar_chart(v.set_index("stock")[["explain_r2_full", "predict_r2_full"]]
+                     .rename(columns={"explain_r2_full": "explain (same window)", "predict_r2_full": "predict (next window)"}))
+        st.caption("R² is out of sample (walk-forward, with a gap so no window overlaps the test). A negative R² means the model "
+                   "did WORSE than just predicting the running average return. Windows overlap, so p-values use "
+                   "HAC errors. With about 30 stocks, a few p-values below 0.05 appear by chance.")
+        pick5 = st.selectbox("Coefficients of", list(v["stock"]), key="t5_stock")
+        co = read_csv(LH / f"{pick5}_h{h}_coefficients.csv", index_col=0)
+        if co is not None:
+            st.markdown(f"**Sensitivity over {h}-day windows, {pick5}** (read it, do not trade on it)")
+            st.bar_chart(co.drop(index="const", errors="ignore")["coef"])
+
+# ================================================================= TAB 3
+with tab3:
+    res = read_csv(EXT / "outputs" / "results.csv")
+    flags = read_csv(EXT / "outputs" / "flags.csv")
+    if res is None:
+        st.warning("No extractor results yet. Run `python -m src.main` in earnings-release-extractor.")
+    else:
+        st.subheader("Ratios only (no currency conversion)")
+        nb = res[res["kind"] == "non_financial"]
+        bk = res[res["kind"] == "bank"]
+        if len(nb):
+            st.markdown("**Non-financial companies**")
+            st.dataframe(nb[["file", "currency", "ebitda_margin_pct", "net_margin_pct", "net_debt_ebitda", "net_income_definition"]]
+                         .round(1), width="stretch", hide_index=True)
+        if len(bk):
+            st.markdown("**Banks**")
+            st.dataframe(bk[["file", "currency", "roe", "efficiency_ratio", "cet1", "net_income_definition"]]
+                         .round(1), width="stretch", hide_index=True)
+        st.caption("`n/a` means the release does not state it (e.g. ExxonMobil's release has no revenue line) "
+                   "or the extractor refused to guess. Net income definitions differ across companies.")
+
+        st.subheader("Flags to check by hand")
+        if flags is not None and len(flags):
+            st.dataframe(flags[["file", "field", "flag_type", "message", "page"]], width="stretch", hide_index=True)
+        else:
+            st.success("No flags.")
+
+        st.subheader("Accuracy against the hand-checked golden set")
+        golden = EXT / "golden" / "golden.csv"
+        if golden.exists():
+            spec = importlib.util.spec_from_file_location("ext_evaluate", EXT / "src" / "evaluate.py")
+            ev = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(ev)
+            df = ev.evaluate(str(golden), str(EXT / "outputs" / "results.csv"))
+            ran = df[df["verdict"] != "file_not_run"]
+            good = ran["verdict"].isin(["correct", "accepted", "null_ok"]).sum()
+            a, b, c = st.columns(3)
+            a.metric("Values checked", len(ran))
+            b.metric("Right", f"{good} ({good / max(len(ran), 1):.0%})")
+            c.metric("Wrong / missing / invented", int(len(ran) - good))
+            alt = ran[ran["verdict"] == "accepted"]
+            if len(alt):
+                st.markdown("**Different definition than the company's headline number** (check this is what you want):")
+                st.dataframe(alt[["file", "metric", "got", "value", "note"]].rename(columns={"got": "extractor", "value": "golden"}),
+                             width="stretch", hide_index=True)
+            st.caption(f"The golden set has {len(df)} values read from the PDF text, each with the page and exact quote. "
+                       "It is small and was built after seeing the extractor's output: good for catching regressions, "
+                       "not a guarantee of overall accuracy.")
+
+# ================================================================= TAB 4
+with tab4:
+    st.markdown("""
+**What this is**: a research prototype that links commodity prices, rates, FX and market indices to stock moves,
+and extracts comparable ratios from earnings releases.
+
+**What it does not do**
+- Over months the factors EXPLAIN the price but do not PREDICT the next window (see the Months horizon tab).
+- It does not forecast commodity prices, FX or rates. Scenarios are "if X moves, the stock usually moves like this".
+- Coefficients are linear and fitted on the past; large shocks are extrapolations (flagged when beyond history).
+- Ranges assume the size of past errors; real crises can be worse, especially for US oil stocks.
+- "With correlations" readings mix in factors that tend to move together; they are not causal.
+- Brazilian 2y/10y yields were tested and added almost nothing (kept off by default).
+- The extractor's accuracy figure comes from a small hand-built set; releases of other companies or quarters may behave differently.
+- Not investment advice.
+""")

@@ -23,3 +23,7 @@ Each project has its own README (how to run, how it works, how to extend, limita
    coefficients change, and walk-forward validation instead of one train/test split.
 5. Apply the oil model to other Brazilian stocks (e.g. PRIO3, VALE3) by changing only the config.
 6. Link the two: use extractor output (margins, leverage) alongside market data.
+
+## Dashboard
+`dashboard/` has a Streamlit page that combines both projects (factor model, scenarios, extracted fundamentals).
+See `dashboard/README.md` to run it.

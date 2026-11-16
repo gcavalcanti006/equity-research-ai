@@ -3,7 +3,7 @@
 #       .venv/bin/python -m src.run_factors --refresh  (downloads everything again)
 #       .venv/bin/python -m src.run_scenarios          (scenarios + historical test; run run_factors first)
 
-years: 10                 # years of daily data (more history = more past episodes to test on)
+years: 20                 # years of daily data (was 10; 20 adds 2008-09, 2011 and 2015-16) (more history = more past episodes to test on)
 start_date: null          # set both (YYYY-MM-DD) to override "years"
 end_date: null
 snapshot_dir: "data/snapshots"
@@ -105,6 +105,13 @@ rolling_window: 252       # days, for the coefficient-drift table
 # Shocks: prices as a fraction (-0.20 = -20%), yields in percentage points (+1.0 = +100 bp).
 # A stock is only shown for scenarios that shock at least one factor it uses.
 reliable_p_max: 0.01        # a stock is marked 'reliable' only if the full model beats market-only with p below this
+# ---- longer horizons (months): src/long_horizon.py, python -m src.run_long_horizon
+long_horizons: [21, 63]        # trading days: ~1 month and ~3 months
+long_step_days: 5              # a new window every 5 days (windows overlap; p-values account for it)
+long_min_train_days: 1260      # ~5 years before the first test
+long_refit_every: 20           # refit every 20 windows (~100 days)
+long_ridge_alpha: 30.0
+long_outputs: "outputs/long_horizon"
 crisis_band_multiplier: 1.25   # widens ranges: errors are bigger in crashes (see scenarios.py)
 scenario_horizon_days: 22   # about one trading month
 scenarios:

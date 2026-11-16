@@ -145,3 +145,9 @@ multi-factor model for several stocks (Brazil and US; oil, agriculture, mining).
 - **No 1-day lags:** `lagged_factors: []`. Without lags the model was equal or better out of sample in 23 of 29 stocks, and it is simpler.
 - `with_correlations` readings mix in what usually moves together (e.g. oil up often comes with US yields up), so they are not causal. Use `only_shocked` to isolate one factor.
 - **Brazil 2y/10y yields (tested):** `data/br_yields.csv` (Investing.com, 2016-2026). Added `br10y` + `br_slope` to the 14 Brazilian stocks: out-of-sample R² improved in only 6 of 14 (average +0.002), clearly better only for tten3 (+0.02) and vale3 (+0.017). Left off by default. The 2.45 pp one-day jump on 2026-10-26 appears in BOTH series (2y and 10y), so it looks like a real market move, not a data error.
+
+## Months horizon (phase 4)
+`python -m src.run_long_horizon` separates two questions over 1- and 3-month windows: what the factors EXPLAIN (same window)
+and what they PREDICT (next window). On 10 years of data the factors explain a lot for oil and copper/mining stocks, but the
+forecast of the next window is worse than a running average in almost every stock: no sign of usable predictability.
+Output: `outputs/long_horizon/`.
