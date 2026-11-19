@@ -162,3 +162,12 @@ Output: `outputs/long_horizon/`.
 - **Test**: four models (base, +inflation, +election, +both) walk-forward, each against base with a Diebold-Mariano test. Because there are many tests,
   `tests.csv` also has a Holm-corrected p-value; only results that survive it deserve attention. The summary prints how many "wins" luck alone would give.
 - Output: `outputs/macro/summary.csv` (one row per stock and horizon, incl. in-sample coefficients) and `outputs/macro/tests.csv`.
+
+## Earnings event study (phase 6)
+`python -m src.run_earnings` looks at every past earnings release of every stock and asks how the stock moved **compared with what the factor model expected**
+(the market, FX, yields and commodity moves of those days are taken into account; the model of each event is fitted only on days before it).
+- **Windows** (trading days around t0 = release day): run-up `t0-10..t0-1`, reaction `t0..t0+1` (two days: we do not know if the company published before the open or after the close), after `t0+2..t0+11`.
+- **Questions**: (1) is the reaction bigger than a normal 2-day move (`move_ratio`, 1 = no); (2) does the move continue or reverse afterwards (`drift_slope`: >0 continues, <0 reverses); (3) does the stock move before the release in the direction of the reaction (`pre_slope`); (4) do the correlation with the market / key factor and the share explained by the factors (R²) change in the 30 days after the release vs the 30 days before; (5) US only, when Yahoo has it: does the EPS surprise line up with the reaction.
+- **Dates**: Yahoo for what it has (saved in `data/earnings_dates/`). Brazilian stocks often come back empty or short: write the release dates in `data/earnings_manual.csv` (columns `stock,date`, YYYY-MM-DD, one row per release) and run again; manual and Yahoo dates are merged.
+- **Pooled results** cluster the standard errors by calendar quarter, because all companies report in the same weeks (their events are not independent). A stock with fewer than 8 events is too thin for conclusions. Many stocks and many tests: a few "significant" per-stock results are expected by luck.
+- Output: `outputs/earnings/` (`events.csv`, `summary.csv`, `pooled.csv`, `dates_coverage.csv`).
