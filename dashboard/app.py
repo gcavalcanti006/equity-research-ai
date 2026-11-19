@@ -2,7 +2,9 @@
 
   Tab 1  Factor model   which stocks the model really explains, and how betas drift
   Tab 2  Scenarios      "what if Brent falls 20%?" + how the model did in past crises
-  Tab 3  Fundamentals   earnings-release extractor: ratios, flags and accuracy vs a hand-checked golden set
+  Tab 3  Months horizon  do the factors explain / predict 1-3 month moves?
+  Tab 4  Earnings & macro  inflation and election tests, and the earnings-release event study
+  Tab 5  Fundamentals   earnings-release extractor: ratios, flags and accuracy vs a hand-checked golden set
 
 Run:  streamlit run dashboard/app.py      (from the equity-research-ai folder)
 It only READS the output files of the two projects; the live scenario box also refits the model locally
@@ -66,7 +68,8 @@ st.title("Equity research dashboard")
 st.caption("Commodity-linked stocks (oil, agro, mining/steel; Brazil and US) + earnings-release extractor. "
            "Built to show what the models can and cannot do, not to give trading advice.")
 
-tab1, tab2, tab5, tab3, tab4 = st.tabs(["Factor model", "Scenarios", "Months horizon", "Fundamentals", "About / limits"])
+tab1, tab2, tab5, tab6, tab3, tab4 = st.tabs(["Factor model", "Scenarios", "Months horizon", "Earnings & macro",
+                                              "Fundamentals", "About / limits"])
 
 # ================================================================= TAB 1
 with tab1:
@@ -218,6 +221,90 @@ with tab5:
             st.markdown(f"**Sensitivity over {h}-day windows, {pick5}** (read it, do not trade on it)")
             st.bar_chart(co.drop(index="const", errors="ignore")["coef"])
 
+# ================================================================= TAB 6 (earnings & macro)
+with tab6:
+    MA, EA = OIL / "outputs" / "macro", OIL / "outputs" / "earnings"
+    st.subheader("1. Do inflation or election years add anything?")
+    st.write("On top of the base factor model, tested out of sample at 1 and 3 months, explaining and predicting. "
+             "Many tests are run, so a few look good by luck; the **Holm** column is the honest one.")
+    mt = read_csv(MA / "tests.csv")
+    if mt is None:
+        st.warning("No results yet. Run `python -m src.run_macro` in oil-equity-fx-model.")
+    else:
+        a, b, c, d = st.columns(4)
+        a.metric("Tests run", len(mt))
+        b.metric("Look helpful (p < 0.05, better R²)", int(mt["helps_p05"].sum()),
+                 help=f"Luck alone would give about {0.025 * len(mt):.0f}.")
+        c.metric(f"Helpful at p < {p_max}", int(mt["helps_alone"].sum()))
+        d.metric("Survive the Holm correction", int(mt["helps_after_correction"].sum()))
+        g = mt.groupby(["mode", "variant"]).agg(tests=("p", "size"), helpful_p05=("helps_p05", "sum"),
+                                                survive_holm=("helps_after_correction", "sum"),
+                                                share_with_positive_gain=("gain", lambda x: (x > 0).mean()))
+        g["avg_R2_change_vs_base"] = (mt["r2_variant"] - mt["r2_base"]).groupby([mt["mode"], mt["variant"]]).mean()
+        st.dataframe(g.round(3), width="stretch")
+        st.caption("variant: infl = + change in year-on-year inflation (US CPI, Brazil IPCA, known only ~20 days after the month ends); "
+                   "elec = + presidential-election-year flag (5 per country in 20 years: too few to prove anything); both = the two. "
+                   "A negative R² change means the extra variable made the out-of-sample fit WORSE.")
+        top = mt[mt["helps_p05"]].sort_values("p")
+        if len(top):
+            st.markdown("**The few that look helpful (check the Holm column before believing any):**")
+            st.dataframe(top[["stock", "horizon_days", "mode", "variant", "r2_base", "r2_variant", "p", "p_holm"]].round(4),
+                         width="stretch", hide_index=True)
+
+    st.subheader("2. What happens around earnings releases?")
+    st.write("For each past release, the stock's move is compared with what the factor model expected from the real moves of the market, "
+             "FX, yields and commodities (model fitted only on days before). Reaction = the 2 days from the release day; "
+             "drift = the 10 trading days after that.")
+    pooled = read_csv(EA / "pooled.csv")
+    if pooled is None:
+        st.warning("No results yet. Run `python -m src.run_earnings` in oil-equity-fx-model.")
+    else:
+        allr = pooled[pooled["group"] == "all"].iloc[0]
+        a, b, c, d = st.columns(4)
+        a.metric("Events", int(allr["n_events"]))
+        b.metric("Reaction vs a normal 2-day move", f"{allr['move_ratio']:.1f}x", help="1.0x = nothing special")
+        c.metric("Drift after the reaction (p-value)", f"{allr['drift_p']:.2f}", help="Small p = the stock tends to continue or reverse")
+        if "surprise_p" in allr and pd.notna(allr.get("surprise_p")):
+            d.metric("EPS surprise vs reaction (p-value)", f"{allr['surprise_p']:.4f}")
+        names = {"group": "group", "n_events": "events", "mean_car_react": "avg abnormal reaction", "p_mean_car_react": "avg reaction p",
+                 "move_ratio": "reaction size (x normal)", "drift_slope": "drift slope", "drift_p": "drift p",
+                 "pre_slope": "run-up slope", "pre_p": "run-up p", "change_corr_market": "change in corr. with market (after - before)",
+                 "change_corr_market_p": "corr. change p", "surprise_slope": "reaction per 1% EPS surprise", "surprise_p": "surprise p"}
+        cols = [c for c in names if c in pooled.columns]
+        st.dataframe(pooled[cols].rename(columns=names).round(4), width="stretch", hide_index=True)
+        st.caption("Drift slope > 0: the stock keeps going the way it reacted; < 0: it partly reverses. Run-up slope: does it already move "
+                   "before the release in the direction of the reaction? Standard errors are clustered by calendar quarter because all "
+                   "companies report in the same weeks.")
+        es = read_csv(EA / "summary.csv")
+        if es is not None:
+            es = es[es["n_events"] > 0].copy()
+            es["thin"] = es["n_events"] < 20
+            st.markdown("**By stock** (stocks with fewer than 20 events are marked `thin`: do not read much into them)")
+            keep = [c for c in ["stock", "country", "sector", "n_events", "thin", "move_ratio", "drift_slope", "drift_p",
+                                "surprise_spearman", "surprise_p"] if c in es.columns]
+            st.dataframe(es.sort_values("move_ratio", ascending=False)[keep].round(3), width="stretch", hide_index=True)
+            st.bar_chart(es.set_index("stock")["move_ratio"].sort_values(ascending=False))
+            st.caption("Bars: how many times bigger the 2-day reaction is than a normal 2-day move. "
+                       f"With {int(es['drift_p'].notna().sum())} stocks tested, about {0.05 * es['drift_p'].notna().sum():.0f} "
+                       f"drift p-values below 0.05 are expected by luck alone (found: {int((es['drift_p'] < 0.05).sum())}).")
+        ev = read_csv(EA / "events.csv", parse_dates=["date"])
+        if ev is not None:
+            pick6 = st.selectbox("One stock", sorted(ev["stock"].unique()), key="t6_stock")
+            e = ev[ev["stock"] == pick6]
+            l, r = st.columns(2)
+            l.markdown("**Average abnormal move around the release**")
+            l.bar_chart(pd.Series({"10 days before": e["car_pre"].mean(), "reaction (2 days)": e["car_react"].mean(),
+                                   "10 days after": e["car_post"].mean()}) * 100)
+            l.caption("Percent, averaged over events; the average hides big moves in both directions (see reaction size above).")
+            sp = e[["surprise_pct", "car_react"]].dropna()
+            sp = sp[sp["surprise_pct"].abs() <= 100]
+            if len(sp) >= 8:
+                r.markdown("**EPS surprise vs abnormal reaction**")
+                r.scatter_chart(sp.rename(columns={"surprise_pct": "EPS surprise (%)", "car_react": "abnormal reaction"}),
+                                x="EPS surprise (%)", y="abnormal reaction")
+            else:
+                r.info("Not enough EPS-surprise data for this stock.")
+
 # ================================================================= TAB 3
 with tab3:
     res = read_csv(EXT / "outputs" / "results.csv")
@@ -281,5 +368,7 @@ and extracts comparable ratios from earnings releases.
 - "With correlations" readings mix in factors that tend to move together; they are not causal.
 - Brazilian 2y/10y yields were tested and added almost nothing (kept off by default).
 - The extractor's accuracy figure comes from a small hand-built set; releases of other companies or quarters may behave differently.
+- Inflation and election years were tested and added nothing that survives correction for multiple testing; the earnings study shows reaction size and EPS-surprise link, but no usable drift after the release.
+- Earnings dates come from Yahoo (some Brazilian ones may be off by a day or missing).
 - Not investment advice.
 """)
