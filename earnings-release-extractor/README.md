@@ -3,8 +3,8 @@
 Reads earnings-release PDFs (text releases or slide decks), asks the Anthropic API to pull out
 key metrics under a strict JSON schema, checks the result, and writes a clean table.
 
-**Status:** code and tests are complete and pass without an API key (the API call is mocked).
-The real extraction has **not** been run yet, so no extracted numbers are shown here.
+**Status:** run on 11 company releases (banks and non-financials). It matches 49 of 49 values of a hand-checked golden set (`golden/golden.csv`, scored by `python -m src.evaluate`). The tests need no API key (the API call is mocked).
+The golden set is small and was built after seeing the output: it catches regressions, it is not a guarantee for other companies.
 
 ## How to run
 ```bash

@@ -4,7 +4,8 @@
   Tab 2  Scenarios      "what if Brent falls 20%?" + how the model did in past crises
   Tab 3  Months horizon  do the factors explain / predict 1-3 month moves?
   Tab 4  Earnings & macro  inflation and election tests, and the earnings-release event study
-  Tab 5  Fundamentals   earnings-release extractor: ratios, flags and accuracy vs a hand-checked golden set
+  Tab 5  Price cones   simulated price paths: how wide could the move be (not a direction forecast)
+  Tab 6  Fundamentals   earnings-release extractor: ratios, flags and accuracy vs a hand-checked golden set
 
 Run:  streamlit run dashboard/app.py      (from the equity-research-ai folder)
 It only READS the output files of the two projects; the live scenario box also refits the model locally
@@ -56,6 +57,29 @@ def oil_world():
     return cfg, levels, factors, scenarios, problems
 
 
+@st.cache_resource
+def cones_module():
+    """cones.py has no imports from `src`, so it can be loaded straight from its file."""
+    spec = importlib.util.spec_from_file_location("oil_cones", OIL / "src" / "cones.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@st.cache_data
+def simulate_cone(stock, horizon, method, n_paths, drift_total, drift_days, seed=7):
+    cn = cones_module()
+    prices = pd.read_csv(OIL / raw_cfg.get("snapshot_dir", "data/snapshots") / f"{stock}.csv", index_col=0, parse_dates=True).iloc[:, 0].dropna()
+    r = cn.log_returns(prices).iloc[-int(raw_cfg.get("cones_lookback_days", 1260)):]
+    sims = cn.simulate_returns(r, horizon, n_paths, int(raw_cfg.get("cones_block_days", 5)), method,
+                               float(raw_cfg.get("cones_halflife_days", 30)), seed)
+    drift = cn.scenario_drift(horizon, drift_total, drift_days) if drift_total else None
+    paths = cn.price_paths(float(prices.iloc[-1]), sims, drift)
+    table = cn.cone(paths)
+    table.loc[0] = float(prices.iloc[-1])
+    return table.sort_index(), cn.end_probabilities(paths, float(prices.iloc[-1])), float(prices.iloc[-1]), prices.index[-1]
+
+
 def reliable_flag(row, p_max):
     return bool(row["p_factors_beats_capm"] < p_max and row["oos_r2_factors"] > row["oos_r2_capm"])
 
@@ -68,8 +92,8 @@ st.title("Equity research dashboard")
 st.caption("Commodity-linked stocks (oil, agro, mining/steel; Brazil and US) + earnings-release extractor. "
            "Built to show what the models can and cannot do, not to give trading advice.")
 
-tab1, tab2, tab5, tab6, tab3, tab4 = st.tabs(["Factor model", "Scenarios", "Months horizon", "Earnings & macro",
-                                              "Fundamentals", "About / limits"])
+tab1, tab2, tab5, tab6, tab7, tab3, tab4 = st.tabs(["Factor model", "Scenarios", "Months horizon", "Earnings & macro",
+                                                    "Price cones", "Fundamentals", "About / limits"])
 
 # ================================================================= TAB 1
 with tab1:
@@ -305,6 +329,63 @@ with tab6:
             else:
                 r.info("Not enough EPS-surprise data for this stock.")
 
+# ================================================================= TAB 7 (price cones)
+with tab7:
+    st.subheader("Where could the price be? A cone of simulated paths")
+    st.write("Thousands of possible paths built by resampling the stock's own past daily returns (last ~5 years, in blocks of 5 days). "
+             "The centre is **neutral on purpose**: the factor model cannot predict direction, so this shows how WIDE plausible moves are, "
+             "not where the price will go.")
+    cone_stocks = sorted(k for k in stocks if (OIL / raw_cfg.get("snapshot_dir", "data/snapshots") / f"{k}.csv").exists())
+    c1, c2, c3 = st.columns(3)
+    pick7 = c1.selectbox("Stock", cone_stocks, key="t7_stock")
+    hz7 = c2.slider("Horizon (trading days)", 5, 126, 21, key="t7_h", help="21 days is about one month, 63 about three months.")
+    method7 = c3.radio("Volatility", ["fhs", "bootstrap"], horizontal=True, key="t7_m",
+                       format_func=lambda m: "today's volatility (fhs)" if m == "fhs" else "5-year average",
+                       help="fhs: the cone is wider after turbulent weeks and narrower after calm ones.")
+    scen7 = read_csv(SC / "scenario_results.csv")
+    drift_total, drift_days, label = 0.0, 22, "neutral centre"
+    if scen7 is not None:
+        d7 = scen7[(scen7["stock"] == pick7) & (scen7["reading"] == "only_shocked")]
+        opts = ["none"] + sorted(d7["scenario"].unique())
+        sc_pick = st.selectbox("Optional: shift the centre by a scenario from the model (only the named factors move)", opts, key="t7_sc")
+        if sc_pick != "none":
+            row = d7[d7["scenario"] == sc_pick].iloc[0]
+            drift_total, drift_days = float(row["impact_pct"]) / 100.0, int(row["horizon_days"])
+            label = f"centre shifted by {sc_pick}: {row['impact_pct']:.1f}% over {drift_days} days"
+    try:
+        table, probs, last_price, last_date = simulate_cone(pick7, hz7, method7, 3000, drift_total, drift_days)
+        a, b, c, d = st.columns(4)
+        a.metric(f"Last price ({last_date.date()})", f"{last_price:,.2f}")
+        b.metric(f"80% range after {hz7} days", f"{table['p10'].iloc[-1]:,.2f} to {table['p90'].iloc[-1]:,.2f}")
+        c.metric("Chance of ending 10% lower", f"{probs['below_-10%']:.0%}")
+        d.metric("Chance of ending 10% higher", f"{probs['above_+10%']:.0%}")
+        st.line_chart(table[["p5", "p25", "p50", "p75", "p95"]])
+        st.caption(f"Lines: 5th, 25th, 50th, 75th and 95th percentile of simulated prices ({label}). "
+                   "Half of the paths end between the 25th and 75th lines, nine in ten between the 5th and 95th.")
+    except Exception as exc:
+        st.info(f"Cone unavailable ({type(exc).__name__}: {exc}). Needs the saved price snapshots (run run_factors).")
+    cal = read_csv(OIL / "outputs" / "cones" / "calibration.csv")
+    st.subheader("Is the width right? Past hit rates")
+    if cal is None:
+        st.warning("Run `python -m src.run_cones` in oil-equity-fx-model to check the cones against the past.")
+    else:
+        h_cal = sorted(cal["horizon_days"].unique())
+        h_near = min(h_cal, key=lambda x: abs(x - hz7))
+        one = cal[(cal["stock"] == pick7) & (cal["horizon_days"] == h_near)]
+        st.write(f"At every past date (about monthly), the cone was rebuilt using only earlier data and compared with what really happened "
+                 f"over the next {h_near} days. A perfect 80% cone would contain the real outcome 80% of the time.")
+        if len(one):
+            t = one.set_index("method")[["n_dates", "coverage_50", "coverage_80", "coverage_90", "coverage_80_turbulent"]]
+            st.dataframe(t.rename(columns={"coverage_50": "50% cone hit rate", "coverage_80": "80% cone hit rate",
+                                           "coverage_90": "90% cone hit rate", "coverage_80_turbulent": "80% cone, turbulent times"}).round(2),
+                         width="stretch")
+        avg = cal[cal["horizon_days"] == h_near].groupby("method")[["coverage_50", "coverage_80", "coverage_90", "coverage_80_turbulent"]].mean()
+        st.markdown(f"**All stocks, {h_near}-day horizon (average)**")
+        st.dataframe(avg.round(2), width="stretch")
+        st.caption("Turbulent times = the 20% of dates with the highest volatility before the forecast. Cones built with today's volatility (fhs) "
+                   "fit turbulent times better; the 5-year average is a bit too wide in calm times and too narrow in crises. "
+                   "Dates overlap, so these hit rates are only approximate. A cone can be well calibrated and still say nothing about direction.")
+
 # ================================================================= TAB 3
 with tab3:
     res = read_csv(EXT / "outputs" / "results.csv")
@@ -370,5 +451,6 @@ and extracts comparable ratios from earnings releases.
 - The extractor's accuracy figure comes from a small hand-built set; releases of other companies or quarters may behave differently.
 - Inflation and election years were tested and added nothing that survives correction for multiple testing; the earnings study shows reaction size and EPS-surprise link, but no usable drift after the release.
 - Earnings dates come from Yahoo (some Brazilian ones may be off by a day or missing).
+- Price cones have a neutral centre: they show how wide moves can be, not where the price goes. Their width was checked against the past (hit rates in the tab), and they are too narrow in the worst crises.
 - Not investment advice.
 """)

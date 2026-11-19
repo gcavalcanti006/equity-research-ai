@@ -22,5 +22,6 @@ and `python -m src.main` in `earnings-release-extractor`, then reload the page.
 2. **Scenarios**: preset and live "what if" shocks, and how the model did in past crises.
 3. **Months horizon**: do the factors explain / predict 1- and 3-month moves.
 4. **Earnings & macro**: inflation and election-year tests, and the earnings-release event study (reaction size, drift, EPS surprise).
-5. **Fundamentals**: ratios from the earnings-release extractor, flags to check by hand, accuracy vs the hand-checked golden set.
-6. **About / limits**: what the models do not do.
+5. **Price cones**: simulated price paths (neutral centre) with their historical hit rates; optional shift by a model scenario.
+6. **Fundamentals**: ratios from the earnings-release extractor, flags to check by hand, accuracy vs the hand-checked golden set.
+7. **About / limits**: what the models do not do.

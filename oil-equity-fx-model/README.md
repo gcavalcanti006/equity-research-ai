@@ -1,5 +1,8 @@
 # oil-equity-fx-model
 
+> **Update:** this started as a one-stock study (the first sections below) and grew into a multi-factor study of 29 stocks. The newest sections at the bottom
+> (multi-factor, scenarios, months horizon, inflation and elections, earnings event study, cones) describe what the project does now.
+
 Measures how much of a Brazilian oil stock's daily price movement is explained by
 oil (Brent) and the exchange rate (USD/BRL).
 
