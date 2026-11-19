@@ -42,15 +42,16 @@ def _factories(market_cols, other_cols, cfg):
     }
 
 
-def walk_forward_long(pairs, market_cols, other_cols, cfg, horizon, mode):
-    """mode 'explain' or 'predict'. Returns a table: pos, model, pred, actual, one row per test point."""
+def walk_forward_long(pairs, market_cols, other_cols, cfg, horizon, mode, factories=None):
+    """mode 'explain' or 'predict'. Returns a table: pos, model, pred, actual, one row per test point.
+    `factories` (optional) replaces the default models, e.g. to test extra variables (see macro_test.py)."""
     step_pos = int(pairs["pos"].iloc[1] - pairs["pos"].iloc[0]) if len(pairs) > 1 else 1
     min_train = int(cfg.get("long_min_train_days", 1260))
     refit = int(cfg.get("long_refit_every", 20))                    # in grid points
     feats = [c for c in pairs.columns if c.startswith("f_")]
     target = "y_now" if mode == "explain" else "y_next"
     usable = pairs.dropna(subset=[target]) if mode == "predict" else pairs
-    factories = _factories(market_cols, other_cols, cfg)
+    factories = factories or _factories(market_cols, other_cols, cfg)
     rows = []
     idx = np.arange(len(usable))
     start = int(np.searchsorted(usable["pos"].values, min_train))

@@ -124,7 +124,7 @@ multi-factor model for several stocks (Brazil and US; oil, agriculture, mining).
 .venv/bin/python -m src.run_scenarios    # scenarios + historical test
 ```
 - **Universe**: 30 stocks = 5 per sector (oil, agro, mining/steel) in Brazil and in the US, all in
-  `config_multifactor.yaml`. 10 years of daily data.
+  `config_multifactor.yaml`. 20 years of daily data.
 - **Iron ore**: the run tries `TIO=F` (CME iron ore futures) on Yahoo. If it fails, `FMG.AX` (Fortescue, almost
   pure iron ore) is used as a **proxy** and the output says so. The only free iron ore series confirmed is
   monthly (FRED `PIORECRUSDM`), too slow for a daily model.
@@ -151,3 +151,14 @@ multi-factor model for several stocks (Brazil and US; oil, agriculture, mining).
 and what they PREDICT (next window). On 10 years of data the factors explain a lot for oil and copper/mining stocks, but the
 forecast of the next window is worse than a running average in almost every stock: no sign of usable predictability.
 Output: `outputs/long_horizon/`.
+
+## Inflation and elections (phase 5)
+`python -m src.run_macro` asks: on top of the base model, do **inflation** or **presidential-election years** help at 1- and 3-month horizons?
+- **Inflation**: US CPI (FRED `CPIAUCNS`) and Brazil IPCA (BCB SGS 433), as year-on-year %. A month's number only counts
+  `inflation_release_lag_days` (20) after the month ends, so there is no look-ahead. The variable is the *change* in year-on-year inflation
+  inside the window. The lag is late on purpose, so the "explain" side is slightly blurred; "predict" is safe.
+- **Elections**: a 0/1 flag for windows ending in a presidential-election year of the stock's country (BR 2006-2026, US 2008-2024, midterms excluded).
+  Five per country is very little data: this can almost never be proven, and the output says so.
+- **Test**: four models (base, +inflation, +election, +both) walk-forward, each against base with a Diebold-Mariano test. Because there are many tests,
+  `tests.csv` also has a Holm-corrected p-value; only results that survive it deserve attention. The summary prints how many "wins" luck alone would give.
+- Output: `outputs/macro/summary.csv` (one row per stock and horizon, incl. in-sample coefficients) and `outputs/macro/tests.csv`.

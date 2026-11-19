@@ -35,6 +35,13 @@ fred:                     # US Treasury yields, % a.a. (no key needed)
 bcb:                      # Brazilian central bank (SGS code)
   selic: 432              # Selic target rate, % a.a. (stored for later; not a daily factor yet)
 
+# Monthly inflation inputs (used only by run_macro; they never enter the base model). Never revised by the agencies.
+fred_monthly:
+  us_cpi_raw: "CPIAUCNS"  # US CPI index, not seasonally adjusted
+bcb_monthly:
+  br_ipca_raw: 433        # IPCA, monthly % change
+inflation_release_lag_days: 20   # a month's number is "known" this many days after the month ENDS (a bit late on purpose: no look-ahead)
+
 # Optional: Brazilian 2y/10y yields you downloaded yourself. CSV with columns: date,br2y,br10y (% a.a.)
 # If set, add br10y / br_slope to 'common_factors.BR' below to use them.
 br_yields_csv: data/br_yields.csv   # loaded, but NOT used by default: tested, adds ~nothing (see README). To use: add br10y, br_slope to common_factors.BR
@@ -112,6 +119,14 @@ long_min_train_days: 1260      # ~5 years before the first test
 long_refit_every: 20           # refit every 20 windows (~100 days)
 long_ridge_alpha: 30.0
 long_outputs: "outputs/long_horizon"
+# ---- inflation and elections: python -m src.run_macro  (src/macro.py, src/macro_test.py) ----
+macro_factors:                 # tested ON TOP of the base model, per country of the stock
+  BR: [br_infl, us_infl]
+  US: [us_infl]
+elections:                     # presidential election years (midterms excluded). 2026 is only partly in the data.
+  BR: [2006, 2010, 2014, 2018, 2022, 2026]
+  US: [2008, 2012, 2016, 2020, 2024]
+macro_outputs: "outputs/macro"
 crisis_band_multiplier: 1.25   # widens ranges: errors are bigger in crashes (see scenarios.py)
 scenario_horizon_days: 22   # about one trading month
 scenarios:

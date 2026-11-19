@@ -53,14 +53,18 @@ def fetch_fred(series_id, start, end):
     return s[(s.index >= pd.Timestamp(start)) & (s.index <= pd.Timestamp(end))]
 
 
-def fetch_bcb(code, start, end):
-    """Banco Central do Brasil, SGS system. Returns JSON like [{"data": "07/12/2026", "valor": "13.75"}]."""
-    params = {"formato": "json",
-              "dataInicial": pd.Timestamp(start).strftime("%d/%m/%Y"),
-              "dataFinal": pd.Timestamp(end).strftime("%d/%m/%Y")}
-    resp = requests.get(BCB_URL.format(code=code), params=params, timeout=60)
-    resp.raise_for_status()
-    rows = resp.json()
+def fetch_bcb(code, start, end, chunk_years=9):
+    """Banco Central do Brasil, SGS system. Returns JSON like [{"data": "07/12/2026", "valor": "13.75"}].
+    The service limits a request to about 10 years, so long ranges are fetched in chunks."""
+    lo, hi = pd.Timestamp(start), pd.Timestamp(end)
+    rows, cur = [], lo
+    while cur <= hi:
+        nxt = min(cur + pd.DateOffset(years=chunk_years) - pd.Timedelta(days=1), hi)
+        params = {"formato": "json", "dataInicial": cur.strftime("%d/%m/%Y"), "dataFinal": nxt.strftime("%d/%m/%Y")}
+        resp = requests.get(BCB_URL.format(code=code), params=params, timeout=60)
+        resp.raise_for_status()
+        rows += resp.json()
+        cur = nxt + pd.Timedelta(days=1)
     if not rows:
         raise RuntimeError(f"BCB series {code} returned no rows")
     s = pd.Series([float(r["valor"]) for r in rows],
@@ -130,6 +134,13 @@ def load_all(cfg, start, end, refresh=False):
         jobs[name] = lambda s=sid: fetch_fred(s, start, end)
     for name, code in cfg.get("bcb", {}).items():
         jobs[name] = lambda c=code: fetch_bcb(c, start, end)
+    # Monthly inflation inputs: fetched from 13+ months earlier, because a year-on-year change needs a year of history.
+    starts = {}
+    early = (pd.Timestamp(start) - pd.Timedelta(days=400)).strftime("%Y-%m-%d")
+    for name, sid in cfg.get("fred_monthly", {}).items():
+        jobs[name], starts[name] = (lambda s_=sid: fetch_fred(s_, early, end)), early
+    for name, code in cfg.get("bcb_monthly", {}).items():
+        jobs[name], starts[name] = (lambda c=code: fetch_bcb(c, early, end)), early
 
     meta = _load_meta(snap)
     series, problems = {}, []
@@ -137,12 +148,12 @@ def load_all(cfg, start, end, refresh=False):
         path = _snapshot_path(snap, name)
         try:
             saved = _read_snapshot(path) if path.exists() else None
-            if saved is not None and not refresh and not _is_stale(name, saved, meta, start):
+            if saved is not None and not refresh and not _is_stale(name, saved, meta, starts.get(name, start)):
                 s, source = saved, "snapshot"
             else:
                 s = job()
                 s.rename(name).to_frame().to_csv(path)
-                meta[name] = {"start": str(start), "end": str(end)}
+                meta[name] = {"start": str(starts.get(name, start)), "end": str(end)}
                 source = "downloaded"
             series[name] = s
             print(f"  {name:10s} {source:10s} {len(s):5d} rows  {s.index[0].date()} -> {s.index[-1].date()}")
@@ -159,4 +170,21 @@ def load_all(cfg, start, end, refresh=False):
                 print(f"  {name:10s} manual csv  {len(s):5d} rows")
         except Exception as exc:
             problems.append(f"br_yields_csv: {type(exc).__name__}: {exc}")
-    return pd.DataFrame(series).sort_index(), problems
+    levels = pd.DataFrame(_with_inflation(series, cfg, problems)).sort_index()
+    for col in ("us_infl", "br_infl"):                 # one value per release -> carry the latest known value forward
+        if col in levels:
+            levels[col] = levels[col].ffill()
+    return levels, problems
+
+
+def _with_inflation(series, cfg, problems):
+    """Replace the raw monthly CPI / IPCA series by their year-on-year level, dated when they became public."""
+    from src import macro
+    raw_us, raw_br = series.pop("us_cpi_raw", None), series.pop("br_ipca_raw", None)
+    if raw_us is None and raw_br is None:
+        return series
+    try:
+        series.update(macro.inflation_levels(raw_us, raw_br, int(cfg.get("inflation_release_lag_days", 20))))
+    except Exception as exc:
+        problems.append(f"inflation: {type(exc).__name__}: {exc}")
+    return series

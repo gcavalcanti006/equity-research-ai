@@ -45,7 +45,7 @@ def to_changes(aligned, rate_series):
 def rate_names(cfg, columns):
     """Which columns are yields (changed by difference, not by log return)."""
     base = set(cfg.get("fred", {})) | set(cfg.get("bcb", {})) | set(cfg.get("rate_series", []))
-    base |= {"br2y", "br10y", "us_slope", "br_slope"}
+    base |= {"br2y", "br10y", "us_slope", "br_slope", "us_infl", "br_infl"}
     return {c for c in columns if c in base}
 
 
